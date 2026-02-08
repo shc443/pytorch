@@ -429,6 +429,8 @@ DEFINE_DISPATCH(shifted_chebyshev_polynomial_t_stub);
 DEFINE_DISPATCH(shifted_chebyshev_polynomial_u_stub);
 DEFINE_DISPATCH(shifted_chebyshev_polynomial_v_stub);
 DEFINE_DISPATCH(shifted_chebyshev_polynomial_w_stub);
+DEFINE_DISPATCH(modified_bessel_i_stub);
+DEFINE_DISPATCH(modified_bessel_k_stub);
 DEFINE_DISPATCH(ldexp_stub);
 
 TORCH_IMPL_FUNC(sub_out) (
@@ -522,6 +524,14 @@ TORCH_IMPL_FUNC(special_shifted_chebyshev_polynomial_v_out) (const Tensor& self,
 
 TORCH_IMPL_FUNC(special_shifted_chebyshev_polynomial_w_out) (const Tensor& self, const Tensor& n, const Tensor& result) {
   shifted_chebyshev_polynomial_w_stub(device_type(), *this);
+}
+
+TORCH_IMPL_FUNC(special_modified_bessel_i_out) (const Tensor& x, const Tensor& nu, const Tensor& result) {
+  modified_bessel_i_stub(device_type(), *this);
+}
+
+TORCH_IMPL_FUNC(special_modified_bessel_k_out) (const Tensor& x, const Tensor& nu, const Tensor& result) {
+  modified_bessel_k_stub(device_type(), *this);
 }
 
 TORCH_IMPL_FUNC(tanh_backward_out) (const Tensor& grad_output, const Tensor& output, const Tensor& result) {
