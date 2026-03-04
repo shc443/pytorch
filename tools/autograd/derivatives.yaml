@@ -3174,7 +3174,7 @@
   nu: non_differentiable
 
 - name: special_modified_bessel_i.nu_scalar(Tensor x, Scalar nu) -> Tensor
-  x: 0.5 * (at::special_modified_bessel_i(x, nu - 1) + at::special_modified_bessel_i(x, nu + 1)) * grad
+  x: 0.5 * (at::special_modified_bessel_i(x, nu.toDouble() - 1) + at::special_modified_bessel_i(x, nu.toDouble() + 1)) * grad
 
 - name: special_modified_bessel_k(Tensor x, Tensor nu) -> Tensor
   x: -0.5 * (at::special_modified_bessel_k(x, nu - 1) + at::special_modified_bessel_k(x, nu + 1)) * grad
@@ -3184,7 +3184,7 @@
   nu: non_differentiable
 
 - name: special_modified_bessel_k.nu_scalar(Tensor x, Scalar nu) -> Tensor
-  x: -0.5 * (at::special_modified_bessel_k(x, nu - 1) + at::special_modified_bessel_k(x, nu + 1)) * grad
+  x: -0.5 * (at::special_modified_bessel_k(x, nu.toDouble() - 1) + at::special_modified_bessel_k(x, nu.toDouble() + 1)) * grad
 
 - name: special_shifted_chebyshev_polynomial_t(Tensor x, Tensor n) -> Tensor
   x: non_differentiable
