@@ -3736,6 +3736,7 @@ inline C10_HOST_DEVICE T bessel_log_abs_gamma(T x) {
 
 // Asymptotic expansion for K_nu(x) (large x)
 // K_nu(x) ~ sqrt(pi/2x) * e^(-x) * sum_{k=0}^N a_k(nu)/x^k
+// Uses optimal truncation: stops at the smallest term (divergent series)
 template<typename T>
 inline C10_HOST_DEVICE T bessel_k_asymptotic(T x, T nu) {
     const T pi = T(3.14159265358979323846);
@@ -3743,21 +3744,21 @@ inline C10_HOST_DEVICE T bessel_k_asymptotic(T x, T nu) {
 
     T sum_val = T(1.0);
     T term = T(1.0);
+    T prev_abs_term = T(1.0);
 
     for (int64_t k = 1; k < 30; k++) {
         T factor = (mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
         term *= factor;
 
-        if (std::abs(term) < T(1e-16) * std::abs(sum_val)) {
+        T abs_term = std::abs(term);
+        // Stop if terms start growing (optimal truncation of divergent series)
+        if (abs_term > prev_abs_term) break;
+        if (abs_term < std::numeric_limits<T>::epsilon() * std::abs(sum_val)) {
             break;
         }
 
-        T prev_sum = sum_val;
         sum_val += term;
-
-        if (sum_val == prev_sum) {
-            break;
-        }
+        prev_abs_term = abs_term;
     }
 
     return std::sqrt(pi / (T(2.0) * x)) * std::exp(-x) * sum_val;
@@ -3790,22 +3791,23 @@ inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
     T b = std::exp(mu * a);  // (x/2)^mu
     T sigma = -a * mu;
 
-    // sinh(sigma)/sigma, careful for small sigma
-    // Added 4th order term from math_h_final_fix.h for better precision
+    // c = sin(mu*pi)/(mu*pi), sinc-like function (Boost.Math convention)
+    // Limit: sin(mu*pi)/(mu*pi) -> 1 as mu -> 0
     T c;
-    if (std::abs(sigma) < T(1e-5)) {
-        T sigma2 = sigma * sigma;
-        c = T(1.0) + sigma2 / T(6.0) + sigma2 * sigma2 / T(120.0);
+    if (std::abs(mu) < T(1e-10)) {
+        c = T(1.0);
     } else {
-        c = std::sinh(sigma) / sigma;
+        c = std::sin(pi * mu) / (mu * pi);
     }
 
-    // sinh(a)/a for d calculation
+    // d = sinh(sigma)/sigma, where sigma = mu*log(2/x)
+    // Limit: sinh(sigma)/sigma -> 1 as sigma -> 0
     T d;
-    if (std::abs(a) < T(1e-5)) {
-        d = T(1.0);
+    if (std::abs(sigma) < T(1e-5)) {
+        T sigma2 = sigma * sigma;
+        d = T(1.0) + sigma2 / T(6.0) + sigma2 * sigma2 / T(120.0);
     } else {
-        d = std::sinh(a) / a;
+        d = std::sinh(sigma) / sigma;
     }
 
     // gamma1, gamma2 limits as mu -> 0
@@ -3913,21 +3915,21 @@ inline C10_HOST_DEVICE T bessel_i_asymptotic(T x, T nu) {
 
     T sum_val = T(1.0);
     T term = T(1.0);
+    T prev_abs_term = T(1.0);
 
     for (int64_t k = 1; k < 30; k++) {
         T factor = -(mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
         term *= factor;
 
-        if (std::abs(term) < T(1e-16) * std::abs(sum_val)) {
+        T abs_term = std::abs(term);
+        // Stop if terms start growing (optimal truncation of divergent series)
+        if (abs_term > prev_abs_term) break;
+        if (abs_term < std::numeric_limits<T>::epsilon() * std::abs(sum_val)) {
             break;
         }
 
-        T prev_sum = sum_val;
         sum_val += term;
-
-        if (sum_val == prev_sum) {
-            break;
-        }
+        prev_abs_term = abs_term;
     }
 
     return std::exp(x) / std::sqrt(T(2.0) * pi * x) * sum_val;
@@ -3967,7 +3969,7 @@ inline C10_HOST_DEVICE T bessel_i_series(T x, T nu) {
         T prev_result = result;
         result += term;
 
-        if (k > 10 && (result == prev_result || std::abs(term) < T(1e-16) * std::abs(result))) {
+        if (k > 10 && (result == prev_result || std::abs(term) < std::numeric_limits<T>::epsilon() * std::abs(result))) {
             break;
         }
     }
@@ -3993,7 +3995,9 @@ inline C10_HOST_DEVICE T bessel_k_recurrence(T K_mu, T K_mu1, T mu, int64_t N, T
         K_curr = K_next;
 
         // Overflow protection: rescale and track accumulated scale in log-space
-        if (std::abs(K_curr) > T(1e300)) {
+        // Use type-appropriate threshold (1e300 unrepresentable in float32)
+        T overflow_thresh = sizeof(T) >= 8 ? T(1e300) : T(1e30);
+        if (std::abs(K_curr) > overflow_thresh) {
             T s = std::abs(K_curr);
             K_prev /= s;
             K_curr /= s;
@@ -4045,8 +4049,19 @@ inline C10_HOST_DEVICE T modified_bessel_i_forward(T x, T nu) {
         return modified_bessel_i1_forward(x);
     }
 
+    // For negative integer orders: I_{-n}(x) = I_n(x) (DLMF 10.27.1)
+    // Must redirect before series path, which breaks on Gamma poles
+    if (nu < T(0.0)) {
+        T nu_round = std::floor(nu_abs + T(0.5));
+        if (std::abs(nu_abs - nu_round) < T(1e-10)) {
+            nu = nu_abs;
+        }
+    }
+
     // Large x: asymptotic expansion
-    if (x > T(20.0) + nu_abs) {
+    // Threshold must ensure first correction term |4*nu^2 - 1|/(8x) < 1,
+    // which requires x > nu^2/2 for convergence of the asymptotic series.
+    if (x > std::max(T(20.0), nu_abs * nu_abs / T(2.0)) + nu_abs) {
         T result = bessel_i_asymptotic(x, nu_abs);
 
         // Handle negative nu for non-integer orders
@@ -4088,7 +4103,9 @@ inline C10_HOST_DEVICE T modified_bessel_k_forward(T x, T nu) {
     }
 
     // Large x: asymptotic expansion
-    if (x > T(20.0) + nu) {
+    // Threshold must ensure first correction term |4*nu^2 - 1|/(8x) < 1,
+    // which requires x > nu^2/2 for convergence of the asymptotic series.
+    if (x > std::max(T(20.0), nu * nu / T(2.0)) + nu) {
         return bessel_k_asymptotic(x, nu);
     }
 

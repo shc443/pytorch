@@ -2830,7 +2830,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
         if (x >= T(0.0)) {
             return 1;
         }
-        int n = static_cast<int>(floor(-x + T(1.0)));
+        long long n = static_cast<long long>(floor(-x + T(1.0)));
         return (n % 2 == 0) ? 1 : -1;
     }
 
@@ -2853,24 +2853,23 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
     T bessel_i_asymptotic(T x, T nu) {
         const T pi = T(3.14159265358979323846);
         T mu = T(4.0) * nu * nu;
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
 
         T sum_val = T(1.0);
         T term = T(1.0);
+        T prev_abs_term = T(1.0);
 
         for (int k = 1; k < 30; k++) {
             T factor = -(mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
             term *= factor;
 
-            if (abs(term) < T(1e-16) * abs(sum_val)) {
-                break;
-            }
+            T abs_term = abs(term);
+            // Stop if terms start growing (optimal truncation of divergent series)
+            if (abs_term > prev_abs_term) break;
+            if (abs_term < tol * abs(sum_val)) break;
 
-            T prev_sum = sum_val;
             sum_val += term;
-
-            if (sum_val == prev_sum) {
-                break;
-            }
+            prev_abs_term = abs_term;
         }
 
         return exp(x) / sqrt(T(2.0) * pi * x) * sum_val;
@@ -2909,7 +2908,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
             T prev_result = result;
             result += term;
 
-            if (k > 10 && (result == prev_result || abs(term) < T(1e-16) * abs(result))) {
+            if (k > 10 && (result == prev_result || abs(term) < (sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7)) * abs(result))) {
                 break;
             }
         }
@@ -2922,24 +2921,23 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
     T bessel_k_asymptotic_for_i(T x, T nu) {
         const T pi = T(3.14159265358979323846);
         T mu = T(4.0) * nu * nu;
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
 
         T sum_val = T(1.0);
         T term = T(1.0);
+        T prev_abs_term = T(1.0);
 
         for (int k = 1; k < 30; k++) {
             T factor = (mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
             term *= factor;
 
-            if (abs(term) < T(1e-16) * abs(sum_val)) {
-                break;
-            }
+            T abs_term = abs(term);
+            // Stop if terms start growing (optimal truncation of divergent series)
+            if (abs_term > prev_abs_term) break;
+            if (abs_term < tol * abs(sum_val)) break;
 
-            T prev_sum = sum_val;
             sum_val += term;
-
-            if (sum_val == prev_sum) {
-                break;
-            }
+            prev_abs_term = abs_term;
         }
 
         return sqrt(pi / (T(2.0) * x)) * exp(-x) * sum_val;
@@ -2975,8 +2973,19 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
             return modified_bessel_i1_forward(x);
         }
 
+        // For negative integer orders: I_{-n}(x) = I_n(x) (DLMF 10.27.1)
+        // Must redirect before series path, which breaks on Gamma poles
+        if (nu < T(0.0)) {
+            T nu_round = floor(nu_abs + T(0.5));
+            if (abs(nu_abs - nu_round) < T(1e-10)) {
+                nu = nu_abs;
+            }
+        }
+
         // Large x: asymptotic expansion
-        if (x > T(20.0) + nu_abs) {
+        // Threshold must ensure first correction term |4*nu^2 - 1|/(8x) < 1,
+        // which requires x > nu^2/2 for convergence of the asymptotic series.
+        if (x > max(T(20.0), nu_abs * nu_abs / T(2.0)) + nu_abs) {
             T result = bessel_i_asymptotic(x, nu_abs);
 
             // Handle negative nu for non-integer orders
@@ -2999,28 +3008,28 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
 
 const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel_k0_string + modified_bessel_k1_string + jiterator_stringify(
     // Asymptotic expansion for K_nu(x) (large x)
+    // Uses optimal truncation: stops at the smallest term (divergent series)
     template<typename T>
     T bessel_k_asymptotic(T x, T nu) {
         const T pi = T(3.14159265358979323846);
         T mu = T(4.0) * nu * nu;
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
 
         T sum_val = T(1.0);
         T term = T(1.0);
+        T prev_abs_term = T(1.0);
 
         for (int k = 1; k < 30; k++) {
             T factor = (mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
             term *= factor;
 
-            if (abs(term) < T(1e-16) * abs(sum_val)) {
-                break;
-            }
+            T abs_term = abs(term);
+            // Stop if terms start growing (optimal truncation of divergent series)
+            if (abs_term > prev_abs_term) break;
+            if (abs_term < tol * abs(sum_val)) break;
 
-            T prev_sum = sum_val;
             sum_val += term;
-
-            if (sum_val == prev_sum) {
-                break;
-            }
+            prev_abs_term = abs_term;
         }
 
         return sqrt(pi / (T(2.0) * x)) * exp(-x) * sum_val;
@@ -3043,7 +3052,9 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
             K_curr = K_next;
 
             // Overflow protection: rescale and track accumulated scale in log-space
-            if (abs(K_curr) > T(1e300)) {
+            // Use type-appropriate threshold (1e300 unrepresentable in float32)
+            T overflow_thresh = sizeof(T) >= 8 ? T(1e300) : T(1e30);
+            if (abs(K_curr) > overflow_thresh) {
                 T s = abs(K_curr);
                 K_prev /= s;
                 K_curr /= s;
@@ -3053,7 +3064,9 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
 
         // Restore the accumulated scale factor
         if (log_scale > T(0.0)) {
-            if (log_scale > T(709.0)) {
+            // Use type-appropriate overflow limit (log(DBL_MAX) ~ 709, log(FLT_MAX) ~ 88)
+            T log_overflow = sizeof(T) >= 8 ? T(709.0) : T(88.0);
+            if (log_scale > log_overflow) {
                 return INFINITY;
             }
             return K_curr * exp(log_scale);
@@ -3085,19 +3098,23 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         T b = exp(mu * a);
         T sigma = -a * mu;
 
+        // c = sin(mu*pi)/(mu*pi), sinc-like function (Boost.Math convention)
+        // Limit: sin(mu*pi)/(mu*pi) -> 1 as mu -> 0
         T c;
-        if (abs(sigma) < T(1e-5)) {
-            T sigma2 = sigma * sigma;
-            c = T(1.0) + sigma2 / T(6.0) + sigma2 * sigma2 / T(120.0);
+        if (abs(mu) < T(1e-10)) {
+            c = T(1.0);
         } else {
-            c = sinh(sigma) / sigma;
+            c = sin(pi * mu) / (mu * pi);
         }
 
+        // d = sinh(sigma)/sigma, where sigma = mu*log(2/x)
+        // Limit: sinh(sigma)/sigma -> 1 as sigma -> 0
         T d;
-        if (abs(a) < T(1e-5)) {
-            d = T(1.0);
+        if (abs(sigma) < T(1e-5)) {
+            T sigma2 = sigma * sigma;
+            d = T(1.0) + sigma2 / T(6.0) + sigma2 * sigma2 / T(120.0);
         } else {
-            d = sinh(a) / a;
+            d = sinh(sigma) / sigma;
         }
 
         T gamma1, gamma2;
@@ -3208,7 +3225,9 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
             return modified_bessel_k1_forward(x);
         }
 
-        if (x > T(20.0) + nu) {
+        // Threshold must ensure first correction term |4*nu^2 - 1|/(8x) < 1,
+        // which requires x > nu^2/2 for convergence of the asymptotic series.
+        if (x > max(T(20.0), nu * nu / T(2.0)) + nu) {
             return bessel_k_asymptotic(x, nu);
         }
 

@@ -1,0 +1,46 @@
+name: Build Wheel for Colab
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    container:
+      image: pytorch/manylinux2_28-builder:cuda12.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install build deps
+        run: |
+          pip install ninja cmake pyyaml typing_extensions setuptools
+
+      - name: Add swap (prevent OOM)
+        run: |
+          fallocate -l 8G /swapfile
+          chmod 600 /swapfile
+          mkswap /swapfile
+          swapon /swapfile
+
+      - name: Build wheel
+        run: |
+          export USE_CUDA=1
+          export USE_CUDNN=0
+          export USE_MKLDNN=0
+          export USE_DISTRIBUTED=0
+          export USE_NCCL=0
+          export BUILD_TEST=0
+          export MAX_JOBS=2
+          export CMAKE_PREFIX_PATH=/usr
+          python3 setup.py bdist_wheel
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: torch-colab-wheel
+          path: dist/*.whl
+          retention-days: 7
