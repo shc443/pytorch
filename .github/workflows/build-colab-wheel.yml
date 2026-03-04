@@ -17,7 +17,7 @@ jobs:
 
       - name: Install build deps
         run: |
-          pip install ninja cmake pyyaml typing_extensions setuptools
+          pip install ninja cmake pyyaml typing_extensions setuptools wheel
 
       - name: Add swap (prevent OOM)
         run: |
