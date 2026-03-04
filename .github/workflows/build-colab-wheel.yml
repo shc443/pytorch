@@ -21,10 +21,14 @@ jobs:
 
       - name: Add swap (prevent OOM)
         run: |
-          fallocate -l 8G /swapfile
-          chmod 600 /swapfile
-          mkswap /swapfile
-          swapon /swapfile
+          if ! swapon --show | grep -q /swapfile; then
+            fallocate -l 8G /swapfile
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+          fi
+          free -h
+        continue-on-error: true
 
       - name: Build wheel
         run: |
