@@ -34,12 +34,10 @@
 
 namespace c10::guts {
 
-#if defined(__HIP__)
+#if defined(__HIP__) || defined(__CUDACC__)
 
-// Implementation from http://en.cppreference.com/w/cpp/utility/apply (but
-// modified)
-// TODO This is an incomplete implementation of std::apply, not working for
-// member functions.
+// std::apply is not available in HIP/CUDA device code because it lacks
+// __host__ __device__ annotations in the standard library.
 namespace detail {
 template <class F, class Tuple, std::size_t... INDEX>
 C10_HOST_DEVICE constexpr auto apply_impl(
