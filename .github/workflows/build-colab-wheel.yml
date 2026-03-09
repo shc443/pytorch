@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 360
+    timeout-minutes: 720
     container:
       image: pytorch/manylinux2_28-builder:cuda12.6
     steps:
@@ -39,7 +39,8 @@ jobs:
           USE_DISTRIBUTED: "0"
           USE_NCCL: "0"
           BUILD_TEST: "0"
-          MAX_JOBS: "2"
+          MAX_JOBS: "4"
+          TORCH_CUDA_ARCH_LIST: "7.5;8.0"
           CMAKE_PREFIX_PATH: /usr
         run: |
           pip wheel --no-deps --no-build-isolation -w dist .
