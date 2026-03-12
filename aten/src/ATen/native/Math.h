@@ -3764,10 +3764,12 @@ inline C10_HOST_DEVICE T bessel_k_asymptotic(T x, T nu) {
     return std::sqrt(pi / (T(2.0) * x)) * std::exp(-x) * sum_val;
 }
 
-// Temme series for K_mu(x) and K_{mu+1}(x) when |mu| <= 0.5, x <= 2
-// Based on N.M. Temme, J. Comput. Phys. 19, 324-337 (1975)
-// Valid for |mu| <= 0.5 (convergence condition from Eq 3.1)
-// Threshold x <= 2.0 follows Boost.Math and GSL convention
+// Temme series for K_mu(x) and K_{mu+1}(x) when |mu| <= 0.5
+// Based on N.M. Temme, "On the numerical evaluation of the modified Bessel
+// function of the third kind", J. Comput. Phys. 19, 324-337 (1975)
+// Valid for |mu| <= 0.5 (convergence condition from Temme Eq 3.1)
+// Converges for all x, but cost grows as ~(x/2)^2 terms.
+// Threshold x <= 2.0 follows Boost.Math (bessel_ik.hpp) and GSL (bessel_Knu.c).
 template<typename T>
 inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
     const T pi = T(3.14159265358979323846);
@@ -3860,50 +3862,79 @@ inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
     *K_mu1 = T(2.0) * sum1 / x;
 }
 
-// Asymptotic pair for K_mu(x) and K_{mu+1}(x) when x > 2
-// Uses DLMF 10.40.2 asymptotic expansion with divergence detection:
-// stop at the smallest term to minimize error from the divergent tail.
+// CF2_ik: Steed's continued fraction method for K_mu(x) and K_{mu+1}(x)
+// Requires: |mu| <= 0.5, x > 1
+//
+// References:
+//   [1] I.J. Thompson and A.R. Barnett, "Modified Bessel functions I_v and
+//       K_v of real order and complex argument, to selected accuracy",
+//       Computer Physics Communications, vol 47, 245-257 (1987)
+//   [2] I.J. Thompson and A.R. Barnett, Journal of Computational Physics,
+//       vol 64, 490-509 (1986) — Steed's algorithm
+//   [3] W.J. Lentz, "Generating Bessel functions in Mie scattering
+//       calculations using continued fractions", Applied Optics,
+//       vol 15, 668-671 (1976)
+//
+// Unlike the DLMF 10.40.2 asymptotic expansion (which diverges for finite x),
+// CF2 is a convergent continued fraction — it converges to the exact answer
+// for all x > 1 when |mu| <= 0.5. This is the same algorithm used by both
+// Boost.Math (bessel_ik.hpp, CF2_ik) and GSL (bessel.c,
+// gsl_sf_bessel_K_scaled_steed_temme_CF2) for moderate-to-large x.
 template<typename T>
-inline C10_HOST_DEVICE void bessel_k_asymptotic_pair(T x, T mu, T* K_mu, T* K_mu1) {
+inline C10_HOST_DEVICE void CF2_ik(T mu, T x, T* K_mu, T* K_mu1) {
     const T pi = T(3.14159265358979323846);
-    const int max_terms = 30;
     const T tol = std::numeric_limits<T>::epsilon();
+    const int max_iter = 1000;
 
-    T prefix = std::sqrt(pi / (T(2.0) * x)) * std::exp(-x);
+    // Steed's algorithm (Thompson-Barnett 1986/1987)
+    T a = mu * mu - T(0.25);
+    T b = T(2.0) * (x + T(1.0));  // b_1
+    T d = T(1.0) / b;              // d_1 = 1/b_1
+    T f = d;                        // f_1 = delta_1 = d_1
+    T delta = d;
+    T prev = T(0.0);
+    T current = T(1.0);
+    T C = -a;                       // C_1 = -a_1
+    T Q = C;                        // Q_1 = C_1
+    T S = T(1.0) + Q * delta;      // S_1
 
-    // K_mu
-    T mu2 = T(4.0) * mu * mu;
-    T sum = T(1.0);
-    T term = T(1.0);
-    T prev_abs_term = T(1.0);
-    for (int k = 1; k < max_terms; k++) {
-        T num = (mu2 - T((2*k - 1) * (2*k - 1)));
-        term *= num / (T(8.0) * T(k) * x);
-        T abs_term = std::abs(term);
-        // Stop if terms start growing (divergent asymptotic series)
-        if (abs_term > prev_abs_term) break;
-        if (abs_term < tol * std::abs(sum)) break;
-        sum += term;
-        prev_abs_term = abs_term;
+    for (int k = 2; k < max_iter; k++) {
+        a -= T(2 * (k - 1));
+        b += T(2.0);
+        d = T(1.0) / (b + a * d);
+        delta *= (b * d - T(1.0));
+        f += delta;
+
+        T q = (prev - (b - T(2.0)) * current) / a;
+        prev = current;
+        current = q;
+
+        C *= -a / T(k);
+        Q += C * q;
+        S += Q * delta;
+
+        // Rescale q-recurrence when q underflows to prevent
+        // the forward recurrence from losing precision.
+        // Matches Boost.Math bessel_ik.hpp CF2_ik() exactly.
+        if (q < tol) {
+            C *= q;
+            prev /= q;
+            current /= q;
+            q = T(1.0);
+        }
+
+        if (std::abs(Q * delta) < std::abs(S) * tol) {
+            break;
+        }
     }
-    *K_mu = prefix * sum;
 
-    // K_{mu+1}
-    T mu1_2 = T(4.0) * (mu + T(1.0)) * (mu + T(1.0));
-    T sum1 = T(1.0);
-    T term1 = T(1.0);
-    T prev_abs_term1 = T(1.0);
-    for (int k = 1; k < max_terms; k++) {
-        T num = (mu1_2 - T((2*k - 1) * (2*k - 1)));
-        term1 *= num / (T(8.0) * T(k) * x);
-        T abs_term1 = std::abs(term1);
-        // Stop if terms start growing (divergent asymptotic series)
-        if (abs_term1 > prev_abs_term1) break;
-        if (abs_term1 < tol * std::abs(sum1)) break;
-        sum1 += term1;
-        prev_abs_term1 = abs_term1;
+    // Guard against underflow in exp(-x) for large x
+    if (-x < std::log(std::numeric_limits<T>::min())) {
+        *K_mu = std::exp(T(0.5) * std::log(pi / (T(2.0) * x)) - x - std::log(S));
+    } else {
+        *K_mu = std::sqrt(pi / (T(2.0) * x)) * std::exp(-x) / S;
     }
-    *K_mu1 = prefix * sum1;
+    *K_mu1 = *K_mu * (T(0.5) + mu + x + (mu * mu - T(0.25)) * f) / x;
 }
 
 // Asymptotic expansion for I_nu(x) (large x)
@@ -4124,19 +4155,20 @@ inline C10_HOST_DEVICE T modified_bessel_k_forward(T x, T nu) {
         N -= 1;
     }
 
-    // Compute base case K_mu, K_{mu+1}
-    // Per Temme (1975) J. Comput. Phys. 19, 324-337:
-    // - Temme series valid for |mu| <= 0.5 (guaranteed by order reduction above)
-    // - Use series for x <= 2.0, asymptotic for x > 2.0 (Boost.Math/GSL convention)
+    // Compute base case K_mu, K_{mu+1} using |mu| <= 0.5
+    // Two methods, following Boost.Math (bessel_ik.hpp) and GSL (bessel_Knu.c):
+    //   x <= 2: Temme series — Temme (1975) J. Comput. Phys. 19, 324-337
+    //   x >  2: CF2 (Steed's continued fraction) — Thompson & Barnett (1987)
+    //           Computer Physics Communications, vol 47, 245-257
+    // Both Boost and GSL use x=2 as the crossover point.
     T K_mu, K_mu1;
 
     if (x <= T(2.0)) {
         // Temme series: accurate for small x, requires |mu| <= 0.5
         temme_ik(mu, x, &K_mu, &K_mu1);
     } else {
-        // Asymptotic expansion: accurate for x > 2.0
-        // Based on DLMF 10.40.2 and Boost.Math CF2 method
-        bessel_k_asymptotic_pair(x, mu, &K_mu, &K_mu1);
+        // CF2: convergent continued fraction, accurate for x > 1
+        CF2_ik(mu, x, &K_mu, &K_mu1);
     }
 
     // Forward recurrence to get K_nu
