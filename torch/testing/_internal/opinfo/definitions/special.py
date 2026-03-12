@@ -747,6 +747,32 @@ op_db: list[OpInfo] = [
         ref=scipy.special.k1 if TEST_SCIPY else None,
         supports_autograd=False,
     ),
+    BinaryUfuncInfo(
+        "special.modified_bessel_i",
+        aten_name="special_modified_bessel_i",
+        dtypes=all_types_and(torch.bool),
+        promotes_int_to_float=True,
+        supports_autograd=True,
+        supports_one_python_scalar=True,
+        ref=scipy.special.iv if TEST_SCIPY else None,
+        decorators=(
+            precisionOverride({torch.float32: 1e-03, torch.float64: 1e-05}),
+        ),
+    ),
+    BinaryUfuncInfo(
+        "special.modified_bessel_k",
+        aten_name="special_modified_bessel_k",
+        dtypes=all_types_and(torch.bool),
+        promotes_int_to_float=True,
+        supports_autograd=True,
+        supports_one_python_scalar=True,
+        ref=scipy.special.kv if TEST_SCIPY else None,
+        decorators=(
+            precisionOverride({torch.float32: 1e-03, torch.float64: 1e-05}),
+        ),
+        # K_nu has singularity at x=0; restrict x to positive values
+        lhs_make_tensor_kwargs=dict(low=0.1),
+    ),
     UnaryUfuncInfo(
         "special.scaled_modified_bessel_k0",
         decorators=(

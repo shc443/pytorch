@@ -2816,6 +2816,481 @@ const auto scaled_modified_bessel_k1_string = modified_bessel_i1_string + jitera
     } // T scaled_modified_bessel_k1_forward(T x)
 ); // scaled_modified_bessel_k1_string
 
+// =============================================================================
+// Modified Bessel functions I_nu(x) and K_nu(x) for arbitrary real order nu
+// =============================================================================
+// For PyTorch Issue #76324: Bessel and Related Functions
+// CUDA jiterator version
+// =============================================================================
+
+const auto modified_bessel_i_string = modified_bessel_i0_string + modified_bessel_i1_string + jiterator_stringify(
+    // Helper: Sign of Gamma(x) for x < 0, non-integer
+    template<typename T>
+    int bessel_gamma_sign(T x) {
+        if (x >= T(0.0)) {
+            return 1;
+        }
+        long long n = static_cast<long long>(floor(-x + T(1.0)));
+        return (n % 2 == 0) ? 1 : -1;
+    }
+
+    // Helper: log|Gamma(x)| with reflection formula for negative x
+    template<typename T>
+    T bessel_log_abs_gamma(T x) {
+        if (x > T(0.0)) {
+            return lgamma(x);
+        }
+        if (x == floor(x)) {
+            return INFINITY;
+        }
+        const T pi = T(3.14159265358979323846);
+        T sin_pi_x = sin(pi * x);
+        return log(pi) - log(abs(sin_pi_x)) - lgamma(T(1.0) - x);
+    }
+
+    // Asymptotic expansion for I_nu(x) (large x)
+    template<typename T>
+    T bessel_i_asymptotic(T x, T nu) {
+        const T pi = T(3.14159265358979323846);
+        T mu = T(4.0) * nu * nu;
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
+
+        T sum_val = T(1.0);
+        T term = T(1.0);
+        T prev_abs_term = T(1.0);
+
+        for (int k = 1; k < 30; k++) {
+            T factor = -(mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
+            term *= factor;
+
+            T abs_term = abs(term);
+            // Stop if terms start growing (optimal truncation of divergent series)
+            if (abs_term > prev_abs_term) break;
+            if (abs_term < tol * abs(sum_val)) break;
+
+            sum_val += term;
+            prev_abs_term = abs_term;
+        }
+
+        return exp(x) / sqrt(T(2.0) * pi * x) * sum_val;
+    }
+
+    // Power series for I_nu(x)
+    template<typename T>
+    T bessel_i_series(T x, T nu) {
+        if (x == T(0.0)) {
+            // Handled by caller; guard against direct calls
+            if (abs(nu) < T(1e-10)) return T(1.0);
+            if (nu > T(0.0)) return T(0.0);
+            return INFINITY;
+        }
+
+        T half_x = x / T(2.0);
+        T ln_half_x = log(half_x);
+        T result = T(0.0);
+
+        for (int k = 0; k < 300; k++) {
+            T gamma_arg = nu + T(k) + T(1.0);
+
+            T log_numerator = (nu + T(2 * k)) * ln_half_x;
+            T log_k_fact = lgamma(T(k + 1));
+            T log_gamma = bessel_log_abs_gamma(gamma_arg);
+            int gamma_sgn = bessel_gamma_sign(gamma_arg);
+
+            T log_abs_term = log_numerator - log_k_fact - log_gamma;
+
+            if (log_abs_term < T(-700.0)) {
+                break;
+            }
+
+            T term = T(gamma_sgn) * exp(log_abs_term);
+
+            T prev_result = result;
+            result += term;
+
+            if (k > 10 && (result == prev_result || abs(term) < (sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7)) * abs(result))) {
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    // Asymptotic expansion for K_nu(x) (large x) — needed for I_{-nu} reflection
+    template<typename T>
+    T bessel_k_asymptotic_for_i(T x, T nu) {
+        const T pi = T(3.14159265358979323846);
+        T mu = T(4.0) * nu * nu;
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
+
+        T sum_val = T(1.0);
+        T term = T(1.0);
+        T prev_abs_term = T(1.0);
+
+        for (int k = 1; k < 30; k++) {
+            T factor = (mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
+            term *= factor;
+
+            T abs_term = abs(term);
+            // Stop if terms start growing (optimal truncation of divergent series)
+            if (abs_term > prev_abs_term) break;
+            if (abs_term < tol * abs(sum_val)) break;
+
+            sum_val += term;
+            prev_abs_term = abs_term;
+        }
+
+        return sqrt(pi / (T(2.0) * x)) * exp(-x) * sum_val;
+    }
+
+    template<typename T>
+    T modified_bessel_i_forward(T x, T nu) {
+        if (x < T(0.0)) {
+            return NAN;
+        }
+        if (x == T(0.0)) {
+            if (abs(nu) < T(1e-10)) {
+                return T(1.0);  // I_0(0) = 1
+            }
+            if (nu > T(0.0)) {
+                return T(0.0);  // I_nu(0) = 0 for nu > 0
+            }
+            // For nu < 0: I_{-nu}(0) = +inf for non-integer nu,
+            // I_{-n}(0) = I_n(0) = 0 for integer n >= 1
+            T nu_abs = abs(nu);
+            T nu_round = floor(nu_abs + T(0.5));
+            if (abs(nu_abs - nu_round) < T(1e-10)) {
+                return T(0.0);  // Integer negative order
+            }
+            return INFINITY;  // Non-integer negative order
+        }
+
+        T nu_abs = abs(nu);
+        if (nu_abs < T(1e-10)) {
+            return modified_bessel_i0_forward(x);
+        }
+        if (abs(nu_abs - T(1.0)) < T(1e-10)) {
+            return modified_bessel_i1_forward(x);
+        }
+
+        // For negative integer orders: I_{-n}(x) = I_n(x) (DLMF 10.27.1)
+        // Must redirect before series path, which breaks on Gamma poles
+        if (nu < T(0.0)) {
+            T nu_round = floor(nu_abs + T(0.5));
+            if (abs(nu_abs - nu_round) < T(1e-10)) {
+                nu = nu_abs;
+            }
+        }
+
+        // Large x: asymptotic expansion
+        // Threshold must ensure first correction term |4*nu^2 - 1|/(8x) < 1,
+        // which requires x > nu^2/2 for convergence of the asymptotic series.
+        if (x > max(T(20.0), nu_abs * nu_abs / T(2.0)) + nu_abs) {
+            T result = bessel_i_asymptotic(x, nu_abs);
+
+            // Handle negative nu for non-integer orders
+            // I_{-nu} = I_nu + (2/pi)*sin(nu*pi)*K_nu
+            if (nu < T(0.0)) {
+                const T pi = T(3.14159265358979323846);
+                T nu_floor = floor(nu_abs + T(0.5));
+                if (abs(nu_abs - nu_floor) > T(1e-10)) {
+                    T K_nu = bessel_k_asymptotic_for_i(x, nu_abs);
+                    result = result + (T(2.0) / pi) * sin(nu_abs * pi) * K_nu;
+                }
+            }
+            return result;
+        }
+
+        // Small to medium x: power series
+        return bessel_i_series(x, nu);
+    }
+); // modified_bessel_i_string
+
+const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel_k0_string + modified_bessel_k1_string + jiterator_stringify(
+    // Asymptotic expansion for K_nu(x) (large x)
+    // Uses optimal truncation: stops at the smallest term (divergent series)
+    template<typename T>
+    T bessel_k_asymptotic(T x, T nu) {
+        const T pi = T(3.14159265358979323846);
+        T mu = T(4.0) * nu * nu;
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
+
+        T sum_val = T(1.0);
+        T term = T(1.0);
+        T prev_abs_term = T(1.0);
+
+        for (int k = 1; k < 30; k++) {
+            T factor = (mu - T((2*k - 1) * (2*k - 1))) / (T(8.0) * T(k) * x);
+            term *= factor;
+
+            T abs_term = abs(term);
+            // Stop if terms start growing (optimal truncation of divergent series)
+            if (abs_term > prev_abs_term) break;
+            if (abs_term < tol * abs(sum_val)) break;
+
+            sum_val += term;
+            prev_abs_term = abs_term;
+        }
+
+        return sqrt(pi / (T(2.0) * x)) * exp(-x) * sum_val;
+    }
+
+    // Forward recurrence for K
+    template<typename T>
+    T bessel_k_recurrence(T K_mu, T K_mu1, T mu, int N, T x) {
+        if (N == 0) return K_mu;
+        if (N == 1) return K_mu1;
+
+        T K_prev = K_mu;
+        T K_curr = K_mu1;
+        T log_scale = T(0.0);
+
+        for (int n = 1; n < N; n++) {
+            T order = mu + T(n);
+            T K_next = K_prev + (T(2.0) * order / x) * K_curr;
+            K_prev = K_curr;
+            K_curr = K_next;
+
+            // Overflow protection: rescale and track accumulated scale in log-space
+            // Use type-appropriate threshold (1e300 unrepresentable in float32)
+            T overflow_thresh = sizeof(T) >= 8 ? T(1e300) : T(1e30);
+            if (abs(K_curr) > overflow_thresh) {
+                T s = abs(K_curr);
+                K_prev /= s;
+                K_curr /= s;
+                log_scale += log(s);
+            }
+        }
+
+        // Restore the accumulated scale factor
+        if (log_scale > T(0.0)) {
+            // Use type-appropriate overflow limit (log(DBL_MAX) ~ 709, log(FLT_MAX) ~ 88)
+            T log_overflow = sizeof(T) >= 8 ? T(709.0) : T(88.0);
+            if (log_scale > log_overflow) {
+                return INFINITY;
+            }
+            return K_curr * exp(log_scale);
+        }
+        return K_curr;
+    }
+
+    // Temme series for K_mu(x) and K_{mu+1}(x) when |mu| <= 0.5
+    // Based on N.M. Temme, "On the numerical evaluation of the modified Bessel
+    // function of the third kind", J. Comput. Phys. 19, 324-337 (1975)
+    // Valid for |mu| <= 0.5 (convergence condition from Temme Eq 3.1)
+    // Converges for all x, but cost grows as ~(x/2)^2 terms.
+    // Threshold x <= 2.0 follows Boost.Math (bessel_ik.hpp) and GSL (bessel_Knu.c).
+    template<typename T>
+    void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
+        const T pi = T(3.14159265358979323846);
+        const T euler_gamma = T(0.5772156649015328606065120900824024310422);
+        const int max_iter = 100;
+        // Use machine-epsilon-based tolerance that works for both float32 and float64
+        const T tol = T(10.0) * (sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7));
+
+        // tgamma1pm1(v) = Gamma(1+v) - 1, accurate for small v
+        auto tgamma1pm1 = [](T v) -> T {
+            return tgamma(T(1.0) + v) - T(1.0);
+        };
+
+        T gp = tgamma1pm1(mu);
+        T gm = tgamma1pm1(-mu);
+
+        T a = log(x / T(2.0));
+        T b = exp(mu * a);
+        T sigma = -a * mu;
+
+        // c = sin(mu*pi)/(mu*pi), sinc-like function (Boost.Math convention)
+        // Limit: sin(mu*pi)/(mu*pi) -> 1 as mu -> 0
+        T c;
+        if (abs(mu) < T(1e-10)) {
+            c = T(1.0);
+        } else {
+            c = sin(pi * mu) / (mu * pi);
+        }
+
+        // d = sinh(sigma)/sigma, where sigma = mu*log(2/x)
+        // Limit: sinh(sigma)/sigma -> 1 as sigma -> 0
+        T d;
+        if (abs(sigma) < T(1e-5)) {
+            T sigma2 = sigma * sigma;
+            d = T(1.0) + sigma2 / T(6.0) + sigma2 * sigma2 / T(120.0);
+        } else {
+            d = sinh(sigma) / sigma;
+        }
+
+        T gamma1, gamma2;
+        if (abs(mu) < T(1e-10)) {
+            gamma1 = -euler_gamma;
+            gamma2 = T(1.0);
+        } else {
+            T inv_gp = T(1.0) / (T(1.0) + gp);
+            T inv_gm = T(1.0) / (T(1.0) + gm);
+            gamma1 = (inv_gm - inv_gp) / (T(2.0) * mu);
+            gamma2 = (inv_gm + inv_gp) / T(2.0);
+        }
+
+        T p = (T(1.0) + gp) / (T(2.0) * b);
+        T q = (T(1.0) + gm) * b / T(2.0);
+        T f = (cosh(sigma) * gamma1 + d * (-a) * gamma2) / c;
+        T h = p;
+        T coef = T(1.0);
+        T sum = coef * f;
+        T sum1 = coef * h;
+
+        T x2_4 = x * x / T(4.0);
+
+        for (int k = 1; k < max_iter; k++) {
+            T k_T = T(k);
+            T denom = k_T * k_T - mu * mu;
+            if (abs(denom) < T(1e-300)) break;
+
+            f = (k_T * f + p + q) / denom;
+            p /= (k_T - mu);
+            q /= (k_T + mu);
+            h = p - k_T * f;
+            coef *= x2_4 / k_T;
+
+            T delta_sum = coef * f;
+            T delta_sum1 = coef * h;
+
+            sum += delta_sum;
+            sum1 += delta_sum1;
+
+            if (abs(delta_sum) < tol * abs(sum) &&
+                abs(delta_sum1) < tol * abs(sum1)) {
+                break;
+            }
+        }
+
+        *K_mu = sum;
+        *K_mu1 = T(2.0) * sum1 / x;
+    }
+
+    // CF2_ik: Steed's continued fraction method for K_mu(x) and K_{mu+1}(x)
+    // Requires: |mu| <= 0.5, x > 1
+    //
+    // References:
+    //   [1] Thompson & Barnett, Comp. Phys. Comm. 47, 245-257 (1987)
+    //   [2] Thompson & Barnett, J. Comput. Phys. 64, 490-509 (1986)
+    //   [3] Lentz, Applied Optics 15, 668-671 (1976)
+    //
+    // Convergent continued fraction (unlike DLMF 10.40.2 asymptotic expansion).
+    // Same algorithm as Boost.Math CF2_ik() and GSL CF2 implementation.
+    template<typename T>
+    void CF2_ik(T mu, T x, T* K_mu, T* K_mu1) {
+        const T pi = T(3.14159265358979323846);
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
+        const int max_iter = 1000;
+
+        T a = mu * mu - T(0.25);
+        T b = T(2.0) * (x + T(1.0));
+        T d = T(1.0) / b;
+        T f = d;
+        T delta = d;
+        T prev = T(0.0);
+        T current = T(1.0);
+        T C = -a;
+        T Q = C;
+        T S = T(1.0) + Q * delta;
+
+        for (int k = 2; k < max_iter; k++) {
+            a -= T(2 * (k - 1));
+            b += T(2.0);
+            d = T(1.0) / (b + a * d);
+            delta *= (b * d - T(1.0));
+            f += delta;
+
+            T q = (prev - (b - T(2.0)) * current) / a;
+            prev = current;
+            current = q;
+
+            C *= -a / T(k);
+            Q += C * q;
+            S += Q * delta;
+
+            // Rescale q-recurrence when q underflows.
+            // Matches Boost.Math bessel_ik.hpp CF2_ik() exactly.
+            if (q < tol) {
+                C *= q;
+                prev /= q;
+                current /= q;
+                q = T(1.0);
+            }
+
+            if (abs(Q * delta) < abs(S) * tol) {
+                break;
+            }
+        }
+
+        // Guard against underflow in exp(-x) for large x
+        T log_min = sizeof(T) >= 8 ? T(-708.0) : T(-87.0);
+        if (-x < log_min) {
+            *K_mu = exp(T(0.5) * log(pi / (T(2.0) * x)) - x - log(S));
+        } else {
+            *K_mu = sqrt(pi / (T(2.0) * x)) * exp(-x) / S;
+        }
+        *K_mu1 = *K_mu * (T(0.5) + mu + x + (mu * mu - T(0.25)) * f) / x;
+    }
+
+    template<typename T>
+    T modified_bessel_k_forward(T x, T nu) {
+        if (x <= T(0.0)) {
+            if (x == T(0.0)) {
+                return INFINITY;
+            }
+            return NAN;
+        }
+
+        nu = abs(nu);
+
+        if (nu < T(1e-10)) {
+            return modified_bessel_k0_forward(x);
+        }
+        if (abs(nu - T(1.0)) < T(1e-10)) {
+            return modified_bessel_k1_forward(x);
+        }
+
+        // Threshold must ensure first correction term |4*nu^2 - 1|/(8x) < 1,
+        // which requires x > nu^2/2 for convergence of the asymptotic series.
+        if (x > max(T(20.0), nu * nu / T(2.0)) + nu) {
+            return bessel_k_asymptotic(x, nu);
+        }
+
+        // Order reduction: nu = N + mu where |mu| <= 0.5
+        // Per Temme (1975): mu = nu - floor(nu + 0.5), ensuring |mu| <= 0.5
+        // This is required for convergence of Temme's series expansion
+        int N = static_cast<int>(floor(nu + T(0.5)));
+        T mu = nu - T(N);
+
+        // Adjust to ensure |mu| <= 0.5 (Temme's convergence requirement)
+        if (mu > T(0.5)) {
+            mu -= T(1.0);
+            N += 1;
+        } else if (mu < T(-0.5)) {
+            mu += T(1.0);
+            N -= 1;
+        }
+
+        // Compute base case K_mu, K_{mu+1} using |mu| <= 0.5
+        // Two methods, following Boost.Math (bessel_ik.hpp) and GSL (bessel_Knu.c):
+        //   x <= 2: Temme series — Temme (1975) J. Comput. Phys. 19, 324-337
+        //   x >  2: CF2 (Steed's continued fraction) — Thompson & Barnett (1987)
+        //           Computer Physics Communications, vol 47, 245-257
+        T K_mu, K_mu1;
+
+        if (x <= T(2.0)) {
+            // Temme series: accurate for small x, requires |mu| <= 0.5
+            temme_ik(mu, x, &K_mu, &K_mu1);
+        } else {
+            // CF2: convergent continued fraction, accurate for x > 1
+            CF2_ik(mu, x, &K_mu, &K_mu1);
+        }
+
+        return bessel_k_recurrence(K_mu, K_mu1, mu, N, x);
+    }
+); // modified_bessel_k_string
+
 const auto shifted_chebyshev_polynomial_t_string = jiterator_stringify(
     template<typename T>
     T shifted_chebyshev_polynomial_t_forward(T x, int64_t n) {

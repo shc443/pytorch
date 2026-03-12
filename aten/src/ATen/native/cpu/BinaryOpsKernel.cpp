@@ -1430,6 +1430,25 @@ void shifted_chebyshev_polynomial_w_kernel(TensorIteratorBase& iterator) {
       });
 } // shifted_chebyshev_polynomial_w_kernel(TensorIteratorBase& iterator)
 
+// Modified Bessel functions for arbitrary order (Issue #76324)
+void modified_bessel_i_kernel(TensorIteratorBase& iterator) {
+  AT_DISPATCH_FLOATING_TYPES(
+      iterator.common_dtype(), "modified_bessel_i_cpu", [&]() {
+        cpu_kernel(iterator, [](scalar_t x, scalar_t nu) -> scalar_t {
+          return modified_bessel_i_forward(x, nu);
+        });
+      });
+} // modified_bessel_i_kernel(TensorIteratorBase& iterator)
+
+void modified_bessel_k_kernel(TensorIteratorBase& iterator) {
+  AT_DISPATCH_FLOATING_TYPES(
+      iterator.common_dtype(), "modified_bessel_k_cpu", [&]() {
+        cpu_kernel(iterator, [](scalar_t x, scalar_t nu) -> scalar_t {
+          return modified_bessel_k_forward(x, nu);
+        });
+      });
+} // modified_bessel_k_kernel(TensorIteratorBase& iterator)
+
 void ldexp_kernel(TensorIteratorBase& iter) {
   AT_DISPATCH_FLOATING_TYPES_AND2(kHalf, kBFloat16, iter.input_dtype(0), "ldexp_cpu", [&] {
     using float_t = scalar_t;
@@ -1499,6 +1518,8 @@ REGISTER_DISPATCH(chebyshev_polynomial_u_stub, &chebyshev_polynomial_u_kernel)
 REGISTER_DISPATCH(hermite_polynomial_h_stub, &hermite_polynomial_h_kernel)
 REGISTER_DISPATCH(hermite_polynomial_he_stub, &hermite_polynomial_he_kernel)
 REGISTER_DISPATCH(ldexp_stub, ldexp_kernel)
+REGISTER_DISPATCH(modified_bessel_i_stub, &modified_bessel_i_kernel)
+REGISTER_DISPATCH(modified_bessel_k_stub, &modified_bessel_k_kernel)
 
 ALSO_REGISTER_AVX512_DISPATCH(atan2_stub, &atan2_kernel)
 ALSO_REGISTER_AVX512_DISPATCH(smooth_l1_stub, &smooth_l1_kernel)
