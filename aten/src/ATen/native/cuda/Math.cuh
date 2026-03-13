@@ -3089,8 +3089,11 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         const T tol = T(10.0) * (sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7));
 
         // tgamma1pm1(v) = Gamma(1+v) - 1, accurate for small v
+        // Uses expm1(lgamma(1+v)) to avoid catastrophic cancellation
+        // when Gamma(1+v) is near 1 (i.e., when v is near 0).
+        // Ref: Boost.Math tgamma1pm1 implementation
         auto tgamma1pm1 = [](T v) -> T {
-            return tgamma(T(1.0) + v) - T(1.0);
+            return expm1(lgamma(T(1.0) + v));
         };
 
         T gp = tgamma1pm1(mu);

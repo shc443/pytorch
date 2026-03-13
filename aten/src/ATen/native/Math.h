@@ -3778,12 +3778,11 @@ inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
     const T tol = std::numeric_limits<T>::epsilon() * T(10.0);
 
     // tgamma1pm1(v) = Gamma(1+v) - 1, accurate for small v
-    // Uses direct tgamma call, which avoids catastrophic cancellation
-    // since std::tgamma is accurate to machine precision and for |v| <= 0.5
-    // the result Gamma(1+v) is in [0.886, 1.329], so subtracting 1 loses
-    // at most ~1 bit of precision.
+    // Uses expm1(lgamma(1+v)) to avoid catastrophic cancellation
+    // when Gamma(1+v) is near 1 (i.e., when v is near 0).
+    // Ref: Boost.Math tgamma1pm1 implementation
     auto tgamma1pm1 = [](T v) -> T {
-        return std::tgamma(T(1.0) + v) - T(1.0);
+        return std::expm1(std::lgamma(T(1.0) + v));
     };
 
     T gp = tgamma1pm1(mu);   // Gamma(1+mu) - 1
