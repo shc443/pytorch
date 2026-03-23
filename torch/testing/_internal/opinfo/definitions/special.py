@@ -747,6 +747,44 @@ op_db: list[OpInfo] = [
         ref=scipy.special.k1 if TEST_SCIPY else None,
         supports_autograd=False,
     ),
+    BinaryUfuncInfo(
+        "special.modified_bessel_i",
+        aten_name="special_modified_bessel_i",
+        dtypes=all_types_and(torch.bool, *_unsigned_int_types),
+        promotes_int_to_float=True,
+        skips=(
+            DecorateInfo(unittest.skip("Skipped!"), "TestCudaFuserOpInfo"),
+            DecorateInfo(unittest.skip("Skipped!"), "TestNNCOpInfo"),
+            DecorateInfo(unittest.expectedFailure, "TestCommon", "test_compare_cpu"),
+        ),
+        supports_autograd=False,
+        supports_one_python_scalar=True,
+        ref=(lambda x, nu: scipy.special.iv(nu, x)) if TEST_SCIPY else None,
+        decorators=(
+            precisionOverride({torch.float32: 1e-03, torch.float64: 1e-05}),
+        ),
+        lhs_make_tensor_kwargs=dict(low=0),
+        rhs_make_tensor_kwargs=dict(low=-30, high=30),
+    ),
+    BinaryUfuncInfo(
+        "special.modified_bessel_k",
+        aten_name="special_modified_bessel_k",
+        dtypes=all_types_and(torch.bool, *_unsigned_int_types),
+        promotes_int_to_float=True,
+        skips=(
+            DecorateInfo(unittest.skip("Skipped!"), "TestCudaFuserOpInfo"),
+            DecorateInfo(unittest.skip("Skipped!"), "TestNNCOpInfo"),
+            DecorateInfo(unittest.expectedFailure, "TestCommon", "test_compare_cpu"),
+        ),
+        supports_autograd=False,
+        supports_one_python_scalar=True,
+        ref=(lambda x, nu: scipy.special.kv(nu, x)) if TEST_SCIPY else None,
+        decorators=(
+            precisionOverride({torch.float32: 1e-03, torch.float64: 1e-05}),
+        ),
+        lhs_make_tensor_kwargs=dict(low=0.1),
+        rhs_make_tensor_kwargs=dict(low=-30, high=30),
+    ),
     UnaryUfuncInfo(
         "special.scaled_modified_bessel_k0",
         decorators=(
