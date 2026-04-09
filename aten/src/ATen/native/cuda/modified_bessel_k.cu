@@ -20,7 +20,7 @@ namespace at::native {
 #else
                 AT_DISPATCH_FLOATING_TYPES(iterator.common_dtype(), "modified_bessel_k_cuda", [&]() {
                     gpu_kernel_with_scalars(iterator, []GPU_LAMBDA(scalar_t x, scalar_t nu) -> scalar_t {
-                        return modified_bessel_k_forward(x, nu);
+                        return modified_bessel_k_forward<scalar_t, true>(x, nu);
                     });
                 });
 #endif

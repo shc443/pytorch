@@ -1350,9 +1350,11 @@ arbitrary real order :math:`\nu`.
         \frac{(x/2)^{\nu+2k}}{k! \Gamma(\nu+k+1)}
 
 Supports arbitrary real orders (not just integers 0 and 1).
+For integer orders, negative x is supported: :math:`I_n(-x) = (-1)^n I_n(x)`.
+For non-integer orders, x must be non-negative.
 
 Args:
-    x (Tensor): the input tensor (x >= 0)
+    x (Tensor): the input tensor (x >= 0 for non-integer nu; any real x for integer nu)
     nu (Tensor): the order (can be any real number)
 
 Keyword args:

@@ -3989,11 +3989,29 @@ inline C10_HOST_DEVICE T bessel_k_recurrence(T K_mu, T K_mu1, T mu, int64_t N, T
 }
 
 // Modified Bessel I_nu(x) for arbitrary real order
-template<typename T>
+template<typename T, bool is_cuda=false>
 inline C10_HOST_DEVICE T modified_bessel_i_forward(T x, T nu) {
-    if (x < T(0.0) || std::isnan(x) || std::isnan(nu)) {
+    if (std::isnan(x) || std::isnan(nu)) {
         return std::numeric_limits<T>::quiet_NaN();
     }
+
+    // I_n(-x) = (-1)^n * I_n(|x|) for integer n (DLMF 10.27.1)
+    // Non-integer nu with x < 0 gives complex results → NaN
+    if (x < T(0.0)) {
+        T nu_abs = std::abs(nu);
+        T nu_round = std::floor(nu_abs + T(0.5));
+        if (std::abs(nu_abs - nu_round) < T(1e-10)) {
+            T val = modified_bessel_i_forward(std::abs(x), T(nu_round));
+            // For huge nu, val is 0 and sign doesn't matter; guard int64 cast
+            if (nu_round > T(9e18)) {
+                return val;
+            }
+            int64_t n = static_cast<int64_t>(nu_round);
+            return (n % 2 == 0) ? val : -val;
+        }
+        return std::numeric_limits<T>::quiet_NaN();
+    }
+
     if (x == T(0.0)) {
         if (std::abs(nu) < T(1e-10)) {
             return T(1.0);
@@ -4035,7 +4053,7 @@ inline C10_HOST_DEVICE T modified_bessel_i_forward(T x, T nu) {
     return bessel_i_series(x, nu);
 }
 
-template<typename T>
+template<typename T, bool is_cuda=false>
 inline C10_HOST_DEVICE T modified_bessel_k_forward(T x, T nu) {
     if (std::isnan(x) || std::isnan(nu)) {
         return std::numeric_limits<T>::quiet_NaN();

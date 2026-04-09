@@ -2929,9 +2929,26 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
 
     template<typename T>
     T modified_bessel_i_forward(T x, T nu) {
-        if (x < T(0.0) || x != x || nu != nu) {
+        if (x != x || nu != nu) {
             return NAN;
         }
+
+        // I_n(-x) = (-1)^n * I_n(|x|) for integer n (DLMF 10.27.1)
+        // Non-integer nu with x < 0 gives complex results
+        if (x < T(0.0)) {
+            T nu_abs = abs(nu);
+            T nu_round = floor(nu_abs + T(0.5));
+            if (abs(nu_abs - nu_round) < T(1e-10)) {
+                T val = modified_bessel_i_forward(-x, T(nu_round));
+                if (nu_round > T(9e18)) {
+                    return val;
+                }
+                int64_t n = static_cast<int64_t>(nu_round);
+                return (n % 2 == 0) ? val : -val;
+            }
+            return NAN;
+        }
+
         if (x == T(0.0)) {
             if (abs(nu) < T(1e-10)) {
                 return T(1.0);  // I_0(0) = 1
@@ -3210,7 +3227,7 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         // Prevent UB from floor(inf) and limit GPU thread divergence from O(nu) recurrence.
         // K_nu(x) for small x overflows, for large x underflows. Crossover at x ~ nu.
         if (nu != nu) return NAN;  // shouldn't reach here, but defensive
-        T nu_max = sizeof(T) >= 8 ? T(2000.0) : T(200.0);
+        T nu_max = T(2000.0);
         if (nu > nu_max) {
             return x > nu ? T(0.0) : INFINITY;
         }
