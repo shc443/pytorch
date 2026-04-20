@@ -2868,6 +2868,9 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
             return INFINITY;
         }
 
+        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
+        const T log_min = sizeof(T) >= 8 ? T(-700.0) : T(-87.0);
+
         T half_x = x / T(2.0);
         T ln_half_x = log(half_x);
         T result = T(0.0);
@@ -2882,7 +2885,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
 
             T log_abs_term = log_numerator - log_k_fact - log_gamma;
 
-            if (log_abs_term < (sizeof(T) >= 8 ? T(-700.0) : T(-87.0))) {
+            if (log_abs_term < log_min) {
                 break;
             }
 
@@ -2891,7 +2894,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
             T prev_result = result;
             result += term;
 
-            if (k > 10 && (result == prev_result || abs(term) < (sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7)) * abs(result))) {
+            if (k > 10 && (result == prev_result || abs(term) < tol * abs(result))) {
                 break;
             }
         }
@@ -2999,6 +3002,42 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
 ); // modified_bessel_i_string
 
 const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel_k0_body_string + modified_bessel_k1_body_string + jiterator_stringify(
+    // DLMF 10.41.3: uniform asymptotic expansion for large nu.
+    // Valid for all x > 0; error ~ O(nu^-4) with U_0..U_3 (~1e-13 at nu=2000).
+    // Replaces the O(nu) recurrence for large nu, which is slow on GPU and
+    // requires a floor(nu) -> int64 cast that is ill-defined beyond ~2^53.
+    template<typename T>
+    T bessel_k_uniform_asymptotic(T x, T nu) {
+        const T pi = T(3.14159265358979323846);
+        T z = x / nu;
+        T z2 = z * z;
+        T w = sqrt(T(1.0) + z2);
+        T p = T(1.0) / w;
+        T eta = w + log(z / (T(1.0) + w));
+
+        T p2 = p * p;
+        T p3 = p2 * p;
+        T p4 = p2 * p2;
+        T p5 = p4 * p;
+        T p6 = p3 * p3;
+        T p7 = p6 * p;
+        T p9 = p7 * p2;
+
+        T U1 = (T(3.0) * p - T(5.0) * p3) / T(24.0);
+        T U2 = (T(81.0) * p2 - T(462.0) * p4 + T(385.0) * p6) / T(1152.0);
+        T U3 = (T(30375.0) * p3 - T(369603.0) * p5 + T(765765.0) * p7 - T(425425.0) * p9) / T(414720.0);
+
+        T inv_nu = T(1.0) / nu;
+        T series = T(1.0) + inv_nu * (-U1 + inv_nu * (U2 + inv_nu * (-U3)));
+
+        // Log form preserves range when exp(-nu*eta) under/overflows.
+        T log_K = T(0.5) * log(pi / (T(2.0) * nu))
+                  - nu * eta
+                  - T(0.25) * log(T(1.0) + z2)
+                  + log(series);
+        return exp(log_K);
+    }
+
     // Forward recurrence for K
     template<typename T>
     T bessel_k_recurrence(T K_mu, T K_mu1, T mu, int64_t N, T x) {
@@ -3224,12 +3263,16 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
             return bessel_k_asymptotic(x, nu);
         }
 
-        // Prevent UB from floor(inf) and limit GPU thread divergence from O(nu) recurrence.
-        // K_nu(x) for small x overflows, for large x underflows. Crossover at x ~ nu.
-        if (nu != nu) return NAN;  // shouldn't reach here, but defensive
-        T nu_max = T(2000.0);
-        if (nu > nu_max) {
-            return x > nu ? T(0.0) : INFINITY;
+        // nu=inf: K_nu(x) diverges for any finite x>0. Handle separately since
+        // the UAE below would produce NaN (inf - inf in log form) at this limit.
+        if (isinf(nu)) {
+            return INFINITY;
+        }
+
+        // Large nu: uniform asymptotic (DLMF 10.41). Accurate across all x>0,
+        // avoids O(nu) recurrence and the subsequent floor(nu)->int64 cast.
+        if (nu > T(2000.0)) {
+            return bessel_k_uniform_asymptotic(x, nu);
         }
 
         int64_t N = static_cast<int64_t>(floor(nu + T(0.5)));

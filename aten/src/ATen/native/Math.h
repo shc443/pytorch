@@ -4053,6 +4053,39 @@ inline C10_HOST_DEVICE T modified_bessel_i_forward(T x, T nu) {
     return bessel_i_series(x, nu);
 }
 
+// DLMF 10.41.3: uniform asymptotic expansion for K_nu(x) at large nu.
+// Valid for all x > 0; error ~ O(nu^-4) with U_0..U_3 (~1e-13 at nu=2000).
+template<typename T>
+inline C10_HOST_DEVICE T bessel_k_uniform_asymptotic(T x, T nu) {
+    const T pi = c10::pi<T>;
+    T z = x / nu;
+    T z2 = z * z;
+    T w = std::sqrt(T(1.0) + z2);
+    T p = T(1.0) / w;
+    T eta = w + std::log(z / (T(1.0) + w));
+
+    T p2 = p * p;
+    T p3 = p2 * p;
+    T p4 = p2 * p2;
+    T p5 = p4 * p;
+    T p6 = p3 * p3;
+    T p7 = p6 * p;
+    T p9 = p7 * p2;
+
+    T U1 = (T(3.0) * p - T(5.0) * p3) / T(24.0);
+    T U2 = (T(81.0) * p2 - T(462.0) * p4 + T(385.0) * p6) / T(1152.0);
+    T U3 = (T(30375.0) * p3 - T(369603.0) * p5 + T(765765.0) * p7 - T(425425.0) * p9) / T(414720.0);
+
+    T inv_nu = T(1.0) / nu;
+    T series = T(1.0) + inv_nu * (-U1 + inv_nu * (U2 + inv_nu * (-U3)));
+
+    T log_K = T(0.5) * std::log(pi / (T(2.0) * nu))
+              - nu * eta
+              - T(0.25) * std::log(T(1.0) + z2)
+              + std::log(series);
+    return std::exp(log_K);
+}
+
 template<typename T, bool is_cuda=false>
 inline C10_HOST_DEVICE T modified_bessel_k_forward(T x, T nu) {
     if (std::isnan(x) || std::isnan(nu)) {
@@ -4079,9 +4112,16 @@ inline C10_HOST_DEVICE T modified_bessel_k_forward(T x, T nu) {
         return bessel_k_asymptotic(x, nu);
     }
 
-    // Prevent int64 overflow from floor(inf) and excessive O(nu) recurrence.
+    // nu=inf: K_nu(x) diverges for any finite x>0. Handle separately since
+    // the UAE below produces NaN (inf - inf in log form) at this limit.
     if (std::isinf(nu)) {
         return std::numeric_limits<T>::infinity();
+    }
+
+    // Large nu: uniform asymptotic (DLMF 10.41). Avoids O(nu) recurrence and
+    // the subsequent floor(nu)->int64 cast (UB for nu beyond int64 range).
+    if (nu > T(2000.0)) {
+        return bessel_k_uniform_asymptotic(x, nu);
     }
 
     int64_t N = static_cast<int64_t>(std::floor(nu + T(0.5)));

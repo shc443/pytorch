@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 
 import torch
-from torch.testing._internal.common_utils import run_tests, TestCase
 from torch.testing._internal.common_device_type import (
-    instantiate_device_type_tests,
     dtypes,
+    instantiate_device_type_tests,
 )
+from torch.testing._internal.common_utils import run_tests, TestCase
+
 
 try:
     from scipy import special as scipy_special
+
     HAS_SCIPY = True
 except ImportError:
     HAS_SCIPY = False
 
 
 class TestModifiedBesselFunctions(TestCase):
-
     def _skip_if_no_scipy(self):
         if not HAS_SCIPY:
             self.skipTest("scipy not available")
@@ -35,7 +36,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.iv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             self.assertEqual(result, expected, **self._tol(dtype))
 
@@ -49,7 +50,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.iv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             self.assertEqual(result, expected, **self._tol(dtype))
 
@@ -63,7 +64,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.iv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             self.assertEqual(result, expected, **self._tol(dtype))
 
@@ -91,7 +92,9 @@ class TestModifiedBesselFunctions(TestCase):
 
         nu_nan = torch.tensor([float("nan")], device=device, dtype=dtype)
         x_ok = torch.tensor([1.0], device=device, dtype=dtype)
-        self.assertTrue(torch.isnan(torch.special.modified_bessel_i(x_ok, nu_nan)).all())
+        self.assertTrue(
+            torch.isnan(torch.special.modified_bessel_i(x_ok, nu_nan)).all()
+        )
 
         # Negative x with non-integer nu returns NaN
         x_neg = torch.tensor([-1.0], device=device, dtype=dtype)
@@ -108,7 +111,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.iv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             self.assertEqual(result, expected, **self._tol(dtype))
 
@@ -122,7 +125,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.kv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             self.assertEqual(result, expected, **self._tol(dtype))
 
@@ -136,7 +139,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.kv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             self.assertEqual(result, expected, **self._tol(dtype))
 
@@ -150,22 +153,30 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.kv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             self.assertEqual(result, expected, **self._tol(dtype))
 
     @dtypes(torch.float32, torch.float64)
     def test_modified_bessel_k_large_nu(self, device, dtype):
         self._skip_if_no_scipy()
-        # Regression: nu > 200 must not be clamped to inf on any device
-        x = torch.tensor([123.7, 250.0, 500.0], device=device, dtype=dtype)
-        for nu_val in [201.0, 300.0]:
+        # Regression: nu must not be clamped to 0/inf. The nu > 2000 branch
+        # uses the uniform asymptotic expansion (DLMF 10.41) and must match
+        # scipy near the x ~ nu crossover where the value is moderate.
+        for nu_val, xs in [
+            (201.0, [123.7, 250.0, 500.0]),
+            (300.0, [123.7, 250.0, 500.0]),
+            (2001.0, [1320.66, 1500.0, 1800.0]),
+            (2500.0, [1650.0, 2000.0]),
+            (5000.0, [3300.0, 4000.0]),
+        ]:
+            x = torch.tensor(xs, device=device, dtype=dtype)
             nu = torch.full_like(x, nu_val)
             result = torch.special.modified_bessel_k(x, nu)
             expected = torch.tensor(
                 [scipy_special.kv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             mask = torch.isfinite(expected)
             if mask.any():
@@ -190,7 +201,9 @@ class TestModifiedBesselFunctions(TestCase):
 
         nu_nan = torch.tensor([float("nan")], device=device, dtype=dtype)
         x_ok = torch.tensor([1.0], device=device, dtype=dtype)
-        self.assertTrue(torch.isnan(torch.special.modified_bessel_k(x_ok, nu_nan)).all())
+        self.assertTrue(
+            torch.isnan(torch.special.modified_bessel_k(x_ok, nu_nan)).all()
+        )
 
         # Negative x returns NaN
         x_neg = torch.tensor([-1.0], device=device, dtype=dtype)
@@ -238,11 +251,14 @@ class TestModifiedBesselFunctions(TestCase):
                 expected = torch.tensor(
                     [scipy_special.iv(nu_val, xi.item()) for xi in x.cpu()],
                     device=device,
-                    dtype=dtype
+                    dtype=dtype,
                 )
                 self.assertEqual(
-                    result, expected, rtol=1e-5, atol=1e-8,
-                    msg=f"Failed for nu={nu_val}"
+                    result,
+                    expected,
+                    rtol=1e-5,
+                    atol=1e-8,
+                    msg=f"Failed for nu={nu_val}",
                 )
 
     @dtypes(torch.float64)
@@ -270,11 +286,14 @@ class TestModifiedBesselFunctions(TestCase):
                 expected = torch.tensor(
                     [scipy_special.kv(nu_val, xi.item()) for xi in x.cpu()],
                     device=device,
-                    dtype=dtype
+                    dtype=dtype,
                 )
                 self.assertEqual(
-                    result, expected, rtol=1e-5, atol=1e-8,
-                    msg=f"Failed for nu={nu_val}"
+                    result,
+                    expected,
+                    rtol=1e-5,
+                    atol=1e-8,
+                    msg=f"Failed for nu={nu_val}",
                 )
 
     @dtypes(torch.float64)
@@ -298,16 +317,18 @@ class TestModifiedBesselFunctions(TestCase):
 
                     self.assertTrue(
                         I_rel_err.item() < 10 * eps,
-                        f"I discontinuity at nu={n}: err={I_rel_err.item()}, eps={eps}"
+                        f"I discontinuity at nu={n}: err={I_rel_err.item()}, eps={eps}",
                     )
                     self.assertTrue(
                         K_rel_err.item() < 10 * eps,
-                        f"K discontinuity at nu={n}: err={K_rel_err.item()}, eps={eps}"
+                        f"K discontinuity at nu={n}: err={K_rel_err.item()}, eps={eps}",
                     )
 
     @dtypes(torch.float64)
     def test_modified_bessel_k_gradient(self, device, dtype):
-        x = torch.tensor([1.0, 2.0, 5.0], device=device, dtype=dtype, requires_grad=True)
+        x = torch.tensor(
+            [1.0, 2.0, 5.0], device=device, dtype=dtype, requires_grad=True
+        )
         nu = torch.tensor([2.5, 2.5, 2.5], device=device, dtype=dtype)
 
         result = torch.special.modified_bessel_k(x, nu)
@@ -322,7 +343,9 @@ class TestModifiedBesselFunctions(TestCase):
 
     @dtypes(torch.float64)
     def test_modified_bessel_i_gradient(self, device, dtype):
-        x = torch.tensor([1.0, 2.0, 5.0], device=device, dtype=dtype, requires_grad=True)
+        x = torch.tensor(
+            [1.0, 2.0, 5.0], device=device, dtype=dtype, requires_grad=True
+        )
         nu = torch.tensor([2.5, 2.5, 2.5], device=device, dtype=dtype)
 
         result = torch.special.modified_bessel_i(x, nu)
@@ -355,7 +378,7 @@ class TestModifiedBesselFunctions(TestCase):
 
             self.assertTrue(
                 gradcheck(func, (x,), eps=1e-6, atol=1e-4, rtol=1e-3),
-                msg=f"gradcheck failed for nu={nu_val}"
+                msg=f"gradcheck failed for nu={nu_val}",
             )
 
     @dtypes(torch.float64)
@@ -378,7 +401,7 @@ class TestModifiedBesselFunctions(TestCase):
 
             self.assertTrue(
                 gradcheck(func, (x,), eps=1e-6, atol=1e-4, rtol=1e-3),
-                msg=f"gradcheck failed for nu={nu_val}"
+                msg=f"gradcheck failed for nu={nu_val}",
             )
 
     @dtypes(torch.float32, torch.float64)
@@ -391,7 +414,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.iv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             # Large x values may have large absolute values; use relative tolerance
             mask = expected.abs() > 0
@@ -408,7 +431,7 @@ class TestModifiedBesselFunctions(TestCase):
             expected = torch.tensor(
                 [scipy_special.kv(nu_val, xi.item()) for xi in x.cpu()],
                 device=device,
-                dtype=dtype
+                dtype=dtype,
             )
             mask = expected.abs() > 0
             if mask.any():
@@ -425,11 +448,41 @@ class TestModifiedBesselFunctions(TestCase):
         expected = torch.tensor(
             [scipy_special.kv(nu_val, xi.item()) for xi in x.cpu()],
             device=device,
-            dtype=dtype
+            dtype=dtype,
         )
 
         mask = expected.abs() > 1e-300
         self.assertEqual(result[mask], expected[mask], **self._tol(dtype))
+
+    @dtypes(torch.float32, torch.float64)
+    def test_modified_bessel_i_broadcasting(self, device, dtype):
+        self._skip_if_no_scipy()
+        # x shape (3, 1), nu shape (1, 4) -> (3, 4)
+        x = torch.tensor([[1.0], [2.0], [5.0]], device=device, dtype=dtype)
+        nu = torch.tensor([[0.5, 1.5, 2.5, 3.5]], device=device, dtype=dtype)
+        result = torch.special.modified_bessel_i(x, nu)
+        self.assertEqual(result.shape, (3, 4))
+
+        xn, nn = x.cpu().numpy(), nu.cpu().numpy()
+        expected = torch.as_tensor(scipy_special.iv(nn, xn), device=device, dtype=dtype)
+        self.assertEqual(result, expected, **self._tol(dtype))
+
+    @dtypes(torch.float32, torch.float64)
+    def test_modified_bessel_k_out_parameter(self, device, dtype):
+        x = torch.tensor([1.0, 2.0, 3.0], device=device, dtype=dtype)
+        nu = torch.full_like(x, 2.5)
+        out = torch.empty_like(x)
+        ret = torch.special.modified_bessel_k(x, nu, out=out)
+        self.assertTrue(ret.data_ptr() == out.data_ptr())
+        direct = torch.special.modified_bessel_k(x, nu)
+        self.assertEqual(out, direct, **self._tol(dtype))
+
+    def test_modified_bessel_int_to_float_promotion(self, device):
+        # int inputs should promote to float (promotes_int_to_float=True in OpInfo)
+        x = torch.tensor([1, 2, 3], device=device, dtype=torch.int64)
+        nu = torch.tensor([1, 2, 3], device=device, dtype=torch.int64)
+        result = torch.special.modified_bessel_i(x, nu)
+        self.assertTrue(result.is_floating_point())
 
 
 instantiate_device_type_tests(TestModifiedBesselFunctions, globals())
