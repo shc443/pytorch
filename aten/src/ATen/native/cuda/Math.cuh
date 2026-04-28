@@ -3048,7 +3048,7 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         T K_curr = K_mu1;
         T log_scale = T(0.0);
 
-        for (int n = 1; n < N; n++) {
+        for (int64_t n = 1; n < N; n++) {
             T order = mu + T(n);
             T K_next = K_prev + (T(2.0) * order / x) * K_curr;
             K_prev = K_curr;
