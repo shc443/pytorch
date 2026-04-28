@@ -755,6 +755,8 @@ op_db: list[OpInfo] = [
         skips=(
             DecorateInfo(unittest.skip("Skipped!"), "TestCudaFuserOpInfo"),
             DecorateInfo(unittest.skip("Skipped!"), "TestNNCOpInfo"),
+            # Reference compare reports nan/inf at extreme nu where scipy and our
+            # asymptotic expansion disagree on the underflow boundary
             DecorateInfo(unittest.expectedFailure, "TestCommon", "test_compare_cpu"),
             # The operator 'aten::special_modified_bessel_i.out' is not currently implemented for the MPS device
             DecorateInfo(unittest.expectedFailure, "TestCommon", device_type="mps"),
@@ -776,6 +778,8 @@ op_db: list[OpInfo] = [
         skips=(
             DecorateInfo(unittest.skip("Skipped!"), "TestCudaFuserOpInfo"),
             DecorateInfo(unittest.skip("Skipped!"), "TestNNCOpInfo"),
+            # Reference compare reports nan/inf at extreme nu where scipy and our
+            # asymptotic expansion disagree on the underflow boundary
             DecorateInfo(unittest.expectedFailure, "TestCommon", "test_compare_cpu"),
             # The operator 'aten::special_modified_bessel_k.out' is not currently implemented for the MPS device
             DecorateInfo(unittest.expectedFailure, "TestCommon", device_type="mps"),

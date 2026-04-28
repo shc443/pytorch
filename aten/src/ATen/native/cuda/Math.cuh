@@ -2827,7 +2827,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
         if (x >= T(0.0)) {
             return 1;
         }
-        long long n = static_cast<long long>(floor(-x + T(1.0)));
+        int64_t n = static_cast<int64_t>(floor(-x + T(1.0)));
         return (n % 2 == 0) ? 1 : -1;
     }
 
