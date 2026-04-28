@@ -3801,11 +3801,12 @@ inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
     T sum1 = coef * h;
 
     T x2_4 = x * x / T(4.0);
+    const T denom_floor = sizeof(T) >= 8 ? T(1e-300) : T(1e-38);
 
     for (int k = 1; k < max_iter; k++) {
         T k_T = T(k);
         T denom = k_T * k_T - mu * mu;
-        if (std::abs(denom) < (sizeof(T) >= 8 ? T(1e-300) : T(1e-38))) break;
+        if (std::abs(denom) < denom_floor) break;
 
         f = (k_T * f + p + q) / denom;
         p /= (k_T - mu);
@@ -3922,6 +3923,8 @@ inline C10_HOST_DEVICE T bessel_i_series(T x, T nu) {
         return std::numeric_limits<T>::infinity();
     }
 
+    const T log_min = sizeof(T) >= 8 ? T(-708.0) : T(-87.0);
+
     T half_x = x / T(2.0);
     T ln_half_x = std::log(half_x);
     T result = T(0.0);
@@ -3936,7 +3939,7 @@ inline C10_HOST_DEVICE T bessel_i_series(T x, T nu) {
 
         T log_abs_term = log_numerator - log_k_fact - log_gamma;
 
-        if (log_abs_term < (sizeof(T) >= 8 ? T(-708.0) : T(-87.0))) {
+        if (log_abs_term < log_min) {
             break;
         }
 
@@ -3963,6 +3966,7 @@ inline C10_HOST_DEVICE T bessel_k_recurrence(T K_mu, T K_mu1, T mu, int64_t N, T
     T K_prev = K_mu;
     T K_curr = K_mu1;
     T log_scale = T(0.0);
+    const T overflow_thresh = sizeof(T) >= 8 ? T(1e300) : T(1e30);
 
     for (int64_t n = 1; n < N; n++) {
         T order = mu + T(n);
@@ -3970,7 +3974,6 @@ inline C10_HOST_DEVICE T bessel_k_recurrence(T K_mu, T K_mu1, T mu, int64_t N, T
         K_prev = K_curr;
         K_curr = K_next;
 
-        T overflow_thresh = sizeof(T) >= 8 ? T(1e300) : T(1e30);
         if (std::abs(K_curr) > overflow_thresh) {
             T s = std::abs(K_curr);
             K_prev /= s;
