@@ -3923,7 +3923,7 @@ inline C10_HOST_DEVICE T bessel_i_series(T x, T nu) {
         return std::numeric_limits<T>::infinity();
     }
 
-    const T log_min = sizeof(T) >= 8 ? T(-708.0) : T(-87.0);
+    const T log_min = std::log(std::numeric_limits<T>::min());
 
     T half_x = x / T(2.0);
     T ln_half_x = std::log(half_x);
