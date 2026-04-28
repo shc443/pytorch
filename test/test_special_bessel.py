@@ -529,6 +529,44 @@ class TestModifiedBesselFunctions(TestCase):
                         f"CPU/CUDA rel_err={rel_err:.2e} exceeds {tol:.0e}",
                 )
 
+    @dtypes(torch.float32, torch.float64)
+    def test_modified_bessel_float_boundaries(self, device, dtype):
+        # Exercise inputs near the type-aware constants in Math.h / Math.cuh:
+        # log_min ~ -708 (f64) / -87 (f32), eps ~ 2.2e-16 (f64) / 1.2e-7 (f32).
+        # The corresponding (x, nu) pairs put log_abs_term near the underflow
+        # boundary in bessel_i_series.
+        self._skip_if_no_scipy()
+
+        if dtype == torch.float32:
+            # log_min = -87. (x/2)^nu falls below this when nu*log(x/2) < -87.
+            # Pick nu and x that put us near this boundary.
+            test_pairs = [(0.01, 30.0), (0.001, 25.0), (0.5, 100.0)]
+            tol = self._tol(dtype)
+        else:
+            # log_min = -708. Same idea but more extreme.
+            test_pairs = [(0.001, 200.0), (1e-5, 100.0), (0.5, 700.0)]
+            tol = self._tol(dtype)
+
+        for x_val, nu_val in test_pairs:
+            x = torch.tensor([x_val], device=device, dtype=dtype)
+            nu = torch.full_like(x, nu_val)
+            result = torch.special.modified_bessel_i(x, nu).item()
+            ref = float(scipy_special.iv(nu_val, x_val))
+            # Either both are zero/underflow, or both are finite and close
+            if abs(ref) < 1e-300:
+                self.assertLess(
+                    abs(result), 1e-250,
+                    msg=f"x={x_val}, nu={nu_val}, dtype={dtype}: "
+                        f"ours={result}, scipy={ref}",
+                )
+            else:
+                rel = abs(result - ref) / abs(ref)
+                self.assertLess(
+                    rel, tol["rtol"],
+                    msg=f"x={x_val}, nu={nu_val}, dtype={dtype}: "
+                        f"rel_err={rel:.2e} ours={result} scipy={ref}",
+                )
+
 
 instantiate_device_type_tests(TestModifiedBesselFunctions, globals())
 
