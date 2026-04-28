@@ -3936,7 +3936,7 @@ inline C10_HOST_DEVICE T bessel_i_series(T x, T nu) {
 
         T log_abs_term = log_numerator - log_k_fact - log_gamma;
 
-        if (log_abs_term < (sizeof(T) >= 8 ? T(-700.0) : T(-87.0))) {
+        if (log_abs_term < (sizeof(T) >= 8 ? T(-708.0) : T(-87.0))) {
             break;
         }
 
