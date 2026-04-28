@@ -3067,8 +3067,10 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
 
         // Restore the accumulated scale factor
         if (log_scale > T(0.0)) {
-            // Use type-appropriate overflow limit (log(DBL_MAX) ~ 709, log(FLT_MAX) ~ 88)
-            T log_overflow = sizeof(T) >= 8 ? T(709.0) : T(88.0);
+            // log(DBL_MAX) ~ 709.78, log(FLT_MAX) ~ 88.72. NVRTC has no
+            // numeric_limits<T>::max(), so hardcode the values used on CPU
+            // (Math.h calls std::log(numeric_limits<T>::max()) directly).
+            T log_overflow = sizeof(T) >= 8 ? T(709.78) : T(88.72);
             if (log_scale > log_overflow) {
                 return INFINITY;
             }
