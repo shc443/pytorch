@@ -3047,6 +3047,13 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         T K_prev = K_mu;
         T K_curr = K_mu1;
         T log_scale = T(0.0);
+        // Overflow protection: rescale and track accumulated scale in log-space
+        // Use type-appropriate threshold (1e300 unrepresentable in float32)
+        const T overflow_thresh = sizeof(T) >= 8 ? T(1e300) : T(1e30);
+        // log(DBL_MAX) ~ 709.78, log(FLT_MAX) ~ 88.72. NVRTC has no
+        // numeric_limits<T>::max(), so hardcode the values used on CPU
+        // (Math.h calls std::log(numeric_limits<T>::max()) directly).
+        const T log_overflow = sizeof(T) >= 8 ? T(709.78) : T(88.72);
 
         for (int64_t n = 1; n < N; n++) {
             T order = mu + T(n);
@@ -3054,9 +3061,6 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
             K_prev = K_curr;
             K_curr = K_next;
 
-            // Overflow protection: rescale and track accumulated scale in log-space
-            // Use type-appropriate threshold (1e300 unrepresentable in float32)
-            T overflow_thresh = sizeof(T) >= 8 ? T(1e300) : T(1e30);
             if (abs(K_curr) > overflow_thresh) {
                 T s = abs(K_curr);
                 K_prev /= s;
@@ -3067,10 +3071,6 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
 
         // Restore the accumulated scale factor
         if (log_scale > T(0.0)) {
-            // log(DBL_MAX) ~ 709.78, log(FLT_MAX) ~ 88.72. NVRTC has no
-            // numeric_limits<T>::max(), so hardcode the values used on CPU
-            // (Math.h calls std::log(numeric_limits<T>::max()) directly).
-            T log_overflow = sizeof(T) >= 8 ? T(709.78) : T(88.72);
             if (log_scale > log_overflow) {
                 return INFINITY;
             }
@@ -3147,11 +3147,12 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         T sum1 = coef * h;
 
         T x2_4 = x * x / T(4.0);
+        const T denom_floor = sizeof(T) >= 8 ? T(1e-300) : T(1e-38);
 
         for (int k = 1; k < max_iter; k++) {
             T k_T = T(k);
             T denom = k_T * k_T - mu * mu;
-            if (abs(denom) < (sizeof(T) >= 8 ? T(1e-300) : T(1e-38))) break;
+            if (abs(denom) < denom_floor) break;
 
             f = (k_T * f + p + q) / denom;
             p /= (k_T - mu);
@@ -3232,7 +3233,7 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         }
 
         // Guard against underflow in exp(-x) for large x
-        T log_min = sizeof(T) >= 8 ? T(-708.0) : T(-87.0);
+        const T log_min = sizeof(T) >= 8 ? T(-708.0) : T(-87.0);
         if (-x < log_min) {
             *K_mu = exp(T(0.5) * log(pi / (T(2.0) * x)) - x - log(S));
         } else {
