@@ -484,6 +484,51 @@ class TestModifiedBesselFunctions(TestCase):
         result = torch.special.modified_bessel_i(x, nu)
         self.assertTrue(result.is_floating_point())
 
+    @dtypes(torch.float32, torch.float64)
+    def test_modified_bessel_cpu_cuda_parity(self, device, dtype):
+        # Verify CPU and CUDA produce equivalent results at boundary inputs
+        # where the type-aware constants in Math.h / Math.cuh matter.
+        if device == "cpu" or not torch.cuda.is_available():
+            self.skipTest("requires CUDA for cross-device comparison")
+
+        # Boundary inputs covering: small x (series), medium x (Temme/CF2),
+        # large x (asymptotic), and large nu (UAE branch).
+        x_cpu = torch.tensor(
+            [0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 100.0, 1000.0],
+            dtype=dtype
+        )
+        x_cuda = x_cpu.to(device)
+
+        for nu_val in [0.5, 2.5, 12.73, 50.0, 200.0, 2001.0, 5000.0]:
+            nu_cpu = torch.full_like(x_cpu, nu_val)
+            nu_cuda = nu_cpu.to(device)
+
+            for fn_name in ("modified_bessel_i", "modified_bessel_k"):
+                fn = getattr(torch.special, fn_name)
+                out_cpu = fn(x_cpu, nu_cpu)
+                out_cuda = fn(x_cuda, nu_cuda).cpu()
+
+                # Compare on inputs where both are finite and non-zero
+                mask = (
+                    torch.isfinite(out_cpu)
+                    & torch.isfinite(out_cuda)
+                    & (out_cpu.abs() > 1e-300)
+                )
+                if not mask.any():
+                    continue
+
+                rel_err = (
+                    (out_cpu[mask] - out_cuda[mask]).abs() / out_cpu[mask].abs()
+                ).max().item()
+                # Tight bound: post-refactor CPU/CUDA agreement should be
+                # within a few ULP for both float32 and float64.
+                tol = 1e-5 if dtype == torch.float32 else 1e-12
+                self.assertLess(
+                    rel_err, tol,
+                    msg=f"{fn_name} nu={nu_val} dtype={dtype}: "
+                        f"CPU/CUDA rel_err={rel_err:.2e} exceeds {tol:.0e}",
+                )
+
 
 instantiate_device_type_tests(TestModifiedBesselFunctions, globals())
 
