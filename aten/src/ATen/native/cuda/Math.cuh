@@ -2869,7 +2869,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
         }
 
         const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
-        const T log_min = sizeof(T) >= 8 ? T(-700.0) : T(-87.0);
+        const T log_min = sizeof(T) >= 8 ? T(-708.0) : T(-87.0);
 
         T half_x = x / T(2.0);
         T ln_half_x = log(half_x);
