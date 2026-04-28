@@ -2932,7 +2932,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
 
     template<typename T>
     T modified_bessel_i_forward(T x, T nu) {
-        if (x != x || nu != nu) {
+        if (isnan(x) || isnan(nu)) {
             return NAN;
         }
 
@@ -3243,7 +3243,7 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
 
     template<typename T>
     T modified_bessel_k_forward(T x, T nu) {
-        if (x != x || nu != nu) return NAN;
+        if (isnan(x) || isnan(nu)) return NAN;
 
         if (x <= T(0.0)) {
             if (x == T(0.0)) {
