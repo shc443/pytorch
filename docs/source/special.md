@@ -69,6 +69,9 @@ The torch.special module, modeled after SciPy's [special](https://docs.scipy.org
 .. autofunction:: sinc
 .. autofunction:: softmax
 .. autofunction:: spherical_bessel_j0
+.. autofunction:: spherical_bessel_j1
+.. autofunction:: spherical_bessel_y0
+.. autofunction:: spherical_bessel_y1
 .. autofunction:: xlog1py
 .. autofunction:: xlogy
 .. autofunction:: zeta

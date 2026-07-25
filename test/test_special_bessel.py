@@ -380,8 +380,136 @@ class TestModifiedBesselFunctions(TestCase):
                 self.assertLess(abs(result - ref) / abs(ref), self._tol(dtype)["rtol"])
 
 
+class TestSphericalBesselFunctions(TestCase):
+    # (torch op name, order, scipy function name)
+    _CASES = (
+        ("spherical_bessel_j1", 1, "spherical_jn"),
+        ("spherical_bessel_y0", 0, "spherical_yn"),
+        ("spherical_bessel_y1", 1, "spherical_yn"),
+    )
+
+    def _skip_if_no_scipy(self):
+        if not HAS_SCIPY:
+            self.skipTest("scipy not available")
+
+    def _tol(self, dtype):
+        if dtype == torch.float32:
+            return dict(rtol=1e-3, atol=1e-5)
+        return dict(rtol=1e-5, atol=1e-8)
+
+    @dtypes(torch.float32, torch.float64)
+    def test_spherical_bessel_reference_values(self, device, dtype):
+        self._skip_if_no_scipy()
+        # Start above 0 so y0/y1 stay finite; span the j1 series regime (|x| < 0.5)
+        # and the oscillatory closed-form regime in one grid.
+        x = torch.cat(
+            [
+                torch.linspace(0.01, 0.5, 60, device=device, dtype=dtype),
+                torch.linspace(0.5, 50.0, 200, device=device, dtype=dtype),
+            ]
+        )
+        for torch_name, order, scipy_name in self._CASES:
+            torch_fn = getattr(torch.special, torch_name)
+            scipy_fn = getattr(scipy_special, scipy_name)
+            expected = torch.as_tensor(
+                scipy_fn(order, x.cpu().numpy()), device=device, dtype=dtype
+            )
+            self.assertEqual(torch_fn(x), expected, **self._tol(dtype))
+
+    @dtypes(torch.float32, torch.float64)
+    def test_spherical_bessel_negative_x_parity(self, device, dtype):
+        self._skip_if_no_scipy()
+        x = torch.linspace(0.3, 30.0, 100, device=device, dtype=dtype)
+        for torch_name, order, scipy_name in self._CASES:
+            torch_fn = getattr(torch.special, torch_name)
+            scipy_fn = getattr(scipy_special, scipy_name)
+            expected = torch.as_tensor(
+                scipy_fn(order, (-x).cpu().numpy()), device=device, dtype=dtype
+            )
+            self.assertEqual(torch_fn(-x), expected, **self._tol(dtype))
+
+    @dtypes(torch.float32, torch.float64)
+    def test_spherical_bessel_j1_small_x(self, device, dtype):
+        # sin(x)/x^2 - cos(x)/x cancels catastrophically near the origin; the
+        # series path must stay accurate down to tiny |x|.
+        self._skip_if_no_scipy()
+        x = torch.logspace(-7, -0.5, 200, device=device, dtype=dtype)
+        expected = torch.as_tensor(
+            scipy_special.spherical_jn(1, x.cpu().numpy()), device=device, dtype=dtype
+        )
+        self.assertEqual(
+            torch.special.spherical_bessel_j1(x), expected, **self._tol(dtype)
+        )
+
+    @dtypes(torch.float32, torch.float64)
+    def test_spherical_bessel_at_zero(self, device, dtype):
+        zero = torch.zeros(1, device=device, dtype=dtype)
+        neg_inf = torch.full((1,), float("-inf"), device=device, dtype=dtype)
+        self.assertEqual(torch.special.spherical_bessel_j1(zero), zero)
+        self.assertEqual(torch.special.spherical_bessel_y0(zero), neg_inf)
+        self.assertEqual(torch.special.spherical_bessel_y1(zero), neg_inf)
+
+    @dtypes(torch.float32, torch.float64)
+    def test_spherical_bessel_at_infinity(self, device, dtype):
+        inf = torch.full((1,), float("inf"), device=device, dtype=dtype)
+        zero = torch.zeros(1, device=device, dtype=dtype)
+        for torch_name, _, _ in self._CASES:
+            torch_fn = getattr(torch.special, torch_name)
+            self.assertEqual(torch_fn(inf), zero)
+            self.assertEqual(torch_fn(-inf), zero)
+
+    def test_spherical_bessel_int_to_float_promotion(self, device):
+        x = torch.tensor([1, 2, 3], device=device, dtype=torch.int64)
+        for torch_name, _, _ in self._CASES:
+            torch_fn = getattr(torch.special, torch_name)
+            self.assertTrue(torch_fn(x).is_floating_point())
+
+    @dtypes(torch.float32, torch.float64)
+    def test_spherical_bessel_out_parameter(self, device, dtype):
+        x = torch.linspace(0.5, 10.0, 20, device=device, dtype=dtype)
+        for torch_name, _, _ in self._CASES:
+            torch_fn = getattr(torch.special, torch_name)
+            out = torch.empty_like(x)
+            ret = torch_fn(x, out=out)
+            self.assertEqual(ret, out)
+            self.assertEqual(out, torch_fn(x))
+
+    @dtypes(torch.float32, torch.float64)
+    def test_spherical_bessel_cpu_cuda_parity(self, device, dtype):
+        if device == "cpu" or not torch.cuda.is_available():
+            self.skipTest("requires CUDA for cross-device comparison")
+        x_cpu = torch.cat(
+            [torch.linspace(-30.0, -0.1, 80), torch.linspace(0.1, 30.0, 80)]
+        ).to(dtype)
+        x_cuda = x_cpu.to(device)
+        for torch_name, _, _ in self._CASES:
+            fn = getattr(torch.special, torch_name)
+            out_cpu = fn(x_cpu)
+            out_cuda = fn(x_cuda).cpu()
+            mask = (
+                torch.isfinite(out_cpu)
+                & torch.isfinite(out_cuda)
+                & (out_cpu.abs() > 1e-300)
+            )
+            rel_err = (
+                ((out_cpu[mask] - out_cuda[mask]).abs() / out_cpu[mask].abs())
+                .max()
+                .item()
+            )
+            tol = 1e-5 if dtype == torch.float32 else 1e-12
+            self.assertLess(
+                rel_err,
+                tol,
+                msg=f"{torch_name} dtype={dtype}: CPU/CUDA rel_err={rel_err:.2e} "
+                f"exceeds {tol:.0e}",
+            )
+
+
 instantiate_device_type_tests(
     TestModifiedBesselFunctions, globals(), only_for=("cpu", "cuda")
+)
+instantiate_device_type_tests(
+    TestSphericalBesselFunctions, globals(), only_for=("cpu", "cuda")
 )
 
 

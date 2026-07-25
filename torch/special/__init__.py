@@ -59,6 +59,9 @@ __all__ = [
     "sinc",
     "softmax",
     "spherical_bessel_j0",
+    "spherical_bessel_j1",
+    "spherical_bessel_y0",
+    "spherical_bessel_y1",
     "xlog1py",
     "xlogy",
     "zeta",
@@ -1515,6 +1518,57 @@ spherical_bessel_j0 = _add_docstr(
 spherical_bessel_j0(input, *, out=None) -> Tensor
 
 Spherical Bessel function of the first kind of order :math:`0`.
+
+"""
+    + r"""
+Args:
+    {input}
+
+Keyword args:
+    {out}
+""".format(**common_args),
+)
+
+spherical_bessel_j1 = _add_docstr(
+    _special.special_spherical_bessel_j1,
+    r"""
+spherical_bessel_j1(input, *, out=None) -> Tensor
+
+Spherical Bessel function of the first kind of order :math:`1`.
+
+"""
+    + r"""
+Args:
+    {input}
+
+Keyword args:
+    {out}
+""".format(**common_args),
+)
+
+spherical_bessel_y0 = _add_docstr(
+    _special.special_spherical_bessel_y0,
+    r"""
+spherical_bessel_y0(input, *, out=None) -> Tensor
+
+Spherical Bessel function of the second kind of order :math:`0`.
+
+"""
+    + r"""
+Args:
+    {input}
+
+Keyword args:
+    {out}
+""".format(**common_args),
+)
+
+spherical_bessel_y1 = _add_docstr(
+    _special.special_spherical_bessel_y1,
+    r"""
+spherical_bessel_y1(input, *, out=None) -> Tensor
+
+Spherical Bessel function of the second kind of order :math:`1`.
 
 """
     + r"""

@@ -284,6 +284,9 @@ test_failures = {
         ("cuda", "xpu")
     ),
     "test_pointwise_spherical_bessel_j0_dynamic_shapes": TestFailure(("cuda", "xpu")),
+    "test_pointwise_spherical_bessel_j1_dynamic_shapes": TestFailure(("cuda", "xpu")),
+    "test_pointwise_spherical_bessel_y0_dynamic_shapes": TestFailure(("cuda", "xpu")),
+    "test_pointwise_spherical_bessel_y1_dynamic_shapes": TestFailure(("cuda", "xpu")),
     "test_pointwise_zeta_dynamic_shapes": TestFailure(("cuda", "xpu")),
     "test_pointwise_chebyshev_polynomial_t_dynamic_shapes": TestFailure(
         ("cuda", "xpu")

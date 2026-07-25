@@ -16537,6 +16537,9 @@ def forward(self, arg0_1: "Sym(s77)", arg1_1: "Sym(s27)", arg2_1: "Sym(s53)", ar
             "scaled_modified_bessel_k0",
             "scaled_modified_bessel_k1",
             "spherical_bessel_j0",
+            "spherical_bessel_j1",
+            "spherical_bessel_y0",
+            "spherical_bessel_y1",
             "zeta",
             "chebyshev_polynomial_t",
             "chebyshev_polynomial_v",
@@ -16598,6 +16601,9 @@ def forward(self, arg0_1: "Sym(s77)", arg1_1: "Sym(s27)", arg2_1: "Sym(s53)", ar
                 "shifted_chebyshev_polynomial_v",
                 "shifted_chebyshev_polynomial_w",
                 "spherical_bessel_j0",
+                "spherical_bessel_j1",
+                "spherical_bessel_y0",
+                "spherical_bessel_y1",
                 "zeta",
             )
         ):

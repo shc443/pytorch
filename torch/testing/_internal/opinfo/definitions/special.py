@@ -938,6 +938,87 @@ op_db: list[OpInfo] = [
             ),
         ),
     ),
+    UnaryUfuncInfo(
+        "special.spherical_bessel_j1",
+        decorators=(
+            toleranceOverride(
+                {
+                    torch.float32: tol(atol=1e-03, rtol=1e-03),
+                    torch.float64: tol(atol=1e-05, rtol=1e-03),
+                }
+            ),
+        ),
+        dtypes=all_types_and(torch.bool, *_unsigned_int_types),
+        dtypesIfMPS=all_types_and(torch.bool),
+        ref=(lambda x: scipy.special.spherical_jn(1, x)) if TEST_SCIPY else None,
+        supports_autograd=False,
+        skips=(
+            DecorateInfo(
+                unittest.skip(
+                    "Scipy doesn't support bool inputs to spherical_bessel_j1"
+                ),
+                "TestUnaryUfuncs",
+                "test_reference_numerics_normal",
+                dtypes=(torch.bool,),
+            ),
+            # NotImplementedError: 'aten::special_spherical_bessel_j1.out' is not implemented for MPS
+            DecorateInfo(unittest.expectedFailure, "TestCommon", device_type="mps"),
+        ),
+    ),
+    UnaryUfuncInfo(
+        "special.spherical_bessel_y0",
+        decorators=(
+            toleranceOverride(
+                {
+                    torch.float32: tol(atol=1e-03, rtol=1e-03),
+                    torch.float64: tol(atol=1e-05, rtol=1e-03),
+                }
+            ),
+        ),
+        dtypes=all_types_and(torch.bool, *_unsigned_int_types),
+        dtypesIfMPS=all_types_and(torch.bool),
+        ref=(lambda x: scipy.special.spherical_yn(0, x)) if TEST_SCIPY else None,
+        supports_autograd=False,
+        skips=(
+            DecorateInfo(
+                unittest.skip(
+                    "Scipy doesn't support bool inputs to spherical_bessel_y0"
+                ),
+                "TestUnaryUfuncs",
+                "test_reference_numerics_normal",
+                dtypes=(torch.bool,),
+            ),
+            # NotImplementedError: 'aten::special_spherical_bessel_y0.out' is not implemented for MPS
+            DecorateInfo(unittest.expectedFailure, "TestCommon", device_type="mps"),
+        ),
+    ),
+    UnaryUfuncInfo(
+        "special.spherical_bessel_y1",
+        decorators=(
+            toleranceOverride(
+                {
+                    torch.float32: tol(atol=1e-03, rtol=1e-03),
+                    torch.float64: tol(atol=1e-05, rtol=1e-03),
+                }
+            ),
+        ),
+        dtypes=all_types_and(torch.bool, *_unsigned_int_types),
+        dtypesIfMPS=all_types_and(torch.bool),
+        ref=(lambda x: scipy.special.spherical_yn(1, x)) if TEST_SCIPY else None,
+        supports_autograd=False,
+        skips=(
+            DecorateInfo(
+                unittest.skip(
+                    "Scipy doesn't support bool inputs to spherical_bessel_y1"
+                ),
+                "TestUnaryUfuncs",
+                "test_reference_numerics_normal",
+                dtypes=(torch.bool,),
+            ),
+            # NotImplementedError: 'aten::special_spherical_bessel_y1.out' is not implemented for MPS
+            DecorateInfo(unittest.expectedFailure, "TestCommon", device_type="mps"),
+        ),
+    ),
 ]
 
 python_ref_db: list[OpInfo] = [

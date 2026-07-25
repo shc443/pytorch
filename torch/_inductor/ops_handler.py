@@ -656,6 +656,15 @@ class OpsHandler(Generic[T]):
     def spherical_bessel_j0(self, x: T) -> T:
         raise NotImplementedError
 
+    def spherical_bessel_j1(self, x: T) -> T:
+        raise NotImplementedError
+
+    def spherical_bessel_y0(self, x: T) -> T:
+        raise NotImplementedError
+
+    def spherical_bessel_y1(self, x: T) -> T:
+        raise NotImplementedError
+
     def zeta(self, x: T, y: T) -> T:
         raise NotImplementedError
 

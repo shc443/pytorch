@@ -978,6 +978,9 @@
     "sinc",
     "softmax",
     "spherical_bessel_j0",
+    "spherical_bessel_j1",
+    "spherical_bessel_y0",
+    "spherical_bessel_y1",
     "xlog1py",
     "xlogy",
     "zeta"

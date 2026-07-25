@@ -1462,6 +1462,21 @@ pointwise_overrides_data: dict[str, OverridesData] = dict(
         cpp=lambda x: f"spherical_bessel_j0_forward({x})",
         name="special_spherical_bessel_j0",
     ),
+    spherical_bessel_j1=OverridesData(
+        type_promotion_kind=ELEMENTWISE_TYPE_PROMOTION_KIND.INT_TO_FLOAT,
+        cpp=lambda x: f"spherical_bessel_j1_forward({x})",
+        name="special_spherical_bessel_j1",
+    ),
+    spherical_bessel_y0=OverridesData(
+        type_promotion_kind=ELEMENTWISE_TYPE_PROMOTION_KIND.INT_TO_FLOAT,
+        cpp=lambda x: f"spherical_bessel_y0_forward({x})",
+        name="special_spherical_bessel_y0",
+    ),
+    spherical_bessel_y1=OverridesData(
+        type_promotion_kind=ELEMENTWISE_TYPE_PROMOTION_KIND.INT_TO_FLOAT,
+        cpp=lambda x: f"spherical_bessel_y1_forward({x})",
+        name="special_spherical_bessel_y1",
+    ),
     zeta=OverridesData(
         type_promotion_kind=ELEMENTWISE_TYPE_PROMOTION_KIND.INT_TO_FLOAT,
         cpp=lambda x, y: f"zeta({x}, {y})",
