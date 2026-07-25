@@ -158,6 +158,9 @@
 #include <ATen/ops/special_scaled_modified_bessel_k1_native.h>
 #include <ATen/ops/special_sinc_native.h>
 #include <ATen/ops/special_spherical_bessel_j0_native.h>
+#include <ATen/ops/special_spherical_bessel_j1_native.h>
+#include <ATen/ops/special_spherical_bessel_y0_native.h>
+#include <ATen/ops/special_spherical_bessel_y1_native.h>
 #include <ATen/ops/sqrt_native.h>
 #include <ATen/ops/square_native.h>
 #include <ATen/ops/tan_native.h>
@@ -228,6 +231,9 @@ CREATE_UNARY_FLOAT_META_FUNC(special_modified_bessel_k1)
 CREATE_UNARY_FLOAT_META_FUNC(special_scaled_modified_bessel_k0)
 CREATE_UNARY_FLOAT_META_FUNC(special_scaled_modified_bessel_k1)
 CREATE_UNARY_FLOAT_META_FUNC(special_spherical_bessel_j0)
+CREATE_UNARY_FLOAT_META_FUNC(special_spherical_bessel_j1)
+CREATE_UNARY_FLOAT_META_FUNC(special_spherical_bessel_y0)
+CREATE_UNARY_FLOAT_META_FUNC(special_spherical_bessel_y1)
 
 TORCH_META_FUNC(polygamma)(int64_t n, const Tensor& self) {
   TORCH_CHECK(n >= 0, "polygamma(n, x) does not support negative n.");
@@ -370,6 +376,9 @@ CREATE_UNARY_TORCH_IMPL_FUNC(special_modified_bessel_k1_out, special_modified_be
 CREATE_UNARY_TORCH_IMPL_FUNC(special_scaled_modified_bessel_k0_out, special_scaled_modified_bessel_k0_stub)
 CREATE_UNARY_TORCH_IMPL_FUNC(special_scaled_modified_bessel_k1_out, special_scaled_modified_bessel_k1_stub)
 CREATE_UNARY_TORCH_IMPL_FUNC(special_spherical_bessel_j0_out, special_spherical_bessel_j0_stub)
+CREATE_UNARY_TORCH_IMPL_FUNC(special_spherical_bessel_j1_out, special_spherical_bessel_j1_stub)
+CREATE_UNARY_TORCH_IMPL_FUNC(special_spherical_bessel_y0_out, special_spherical_bessel_y0_stub)
+CREATE_UNARY_TORCH_IMPL_FUNC(special_spherical_bessel_y1_out, special_spherical_bessel_y1_stub)
 
 TORCH_IMPL_FUNC(round_decimals_out)
 (const Tensor& self, int64_t decimals, const Tensor& result) {
@@ -1040,5 +1049,8 @@ DEFINE_DISPATCH(special_modified_bessel_k1_stub); // NOLINT(cppcoreguidelines-av
 DEFINE_DISPATCH(special_scaled_modified_bessel_k0_stub); // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 DEFINE_DISPATCH(special_scaled_modified_bessel_k1_stub); // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 DEFINE_DISPATCH(special_spherical_bessel_j0_stub); // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+DEFINE_DISPATCH(special_spherical_bessel_j1_stub); // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+DEFINE_DISPATCH(special_spherical_bessel_y0_stub); // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+DEFINE_DISPATCH(special_spherical_bessel_y1_stub); // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 } // namespace at::native

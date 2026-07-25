@@ -1334,6 +1334,12 @@ aten::special_shifted_chebyshev_polynomial_w.n_scalar_out
 aten::special_shifted_chebyshev_polynomial_w.out
 aten::special_shifted_chebyshev_polynomial_w.x_scalar
 aten::special_shifted_chebyshev_polynomial_w.x_scalar_out
+aten::special_spherical_bessel_j1
+aten::special_spherical_bessel_j1.out
+aten::special_spherical_bessel_y0
+aten::special_spherical_bessel_y0.out
+aten::special_spherical_bessel_y1
+aten::special_spherical_bessel_y1.out
 aten::split_copy.Tensor
 aten::split_copy.Tensor_out
 aten::squeeze_

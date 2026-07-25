@@ -142,6 +142,9 @@ TORCH_LIBRARY_IMPL(aten, FuncTorchBatched, m) {
   UNARY_POINTWISE(special_ndtri);
   POINTWISE_BOXED(special_bessel_j0);
   POINTWISE_BOXED(special_spherical_bessel_j0);
+  POINTWISE_BOXED(special_spherical_bessel_j1);
+  POINTWISE_BOXED(special_spherical_bessel_y0);
+  POINTWISE_BOXED(special_spherical_bessel_y1);
   POINTWISE_BOXED(special_bessel_j1);
   POINTWISE_BOXED(special_modified_bessel_i0);
   POINTWISE_BOXED(special_modified_bessel_i1);

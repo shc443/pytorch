@@ -3579,6 +3579,43 @@ const auto spherical_bessel_j0_string = jiterator_stringify(
     } // T spherical_bessel_j0_forward(T x)
 ); // spherical_bessel_j0_string
 
+const auto spherical_bessel_j1_string = jiterator_stringify(
+    template<typename T>
+    T spherical_bessel_j1_forward(T x) {
+        if (isinf(x)) {
+            return T(0.0);
+        }
+
+        if (abs(x) < T(0.5)) {
+            return x * (T(1.0) / T(3.0) + x * x * (T(-1.0) / T(30.0) + x * x * (T(1.0) / T(840.0) + x * x * (T(-1.0) / T(45360.0) + x * x * (T(1.0) / T(3991680.0) + x * x * (T(-1.0) / T(518918400.0) + x * x * (T(1.0) / T(93405312000.0))))))));
+        }
+
+        return sin(x) / (x * x) - cos(x) / x;
+    } // T spherical_bessel_j1_forward(T x)
+); // spherical_bessel_j1_string
+
+const auto spherical_bessel_y0_string = jiterator_stringify(
+    template<typename T>
+    T spherical_bessel_y0_forward(T x) {
+        if (isinf(x)) {
+            return T(0.0);
+        }
+
+        return -cos(x) / x;
+    } // T spherical_bessel_y0_forward(T x)
+); // spherical_bessel_y0_string
+
+const auto spherical_bessel_y1_string = jiterator_stringify(
+    template<typename T>
+    T spherical_bessel_y1_forward(T x) {
+        if (isinf(x)) {
+            return T(0.0);
+        }
+
+        return -(cos(x) + x * sin(x)) / (x * x);
+    } // T spherical_bessel_y1_forward(T x)
+); // spherical_bessel_y1_string
+
 #else // !AT_USE_JITERATOR() -- kernels must be precompiled
 
 template <typename scalar_t>

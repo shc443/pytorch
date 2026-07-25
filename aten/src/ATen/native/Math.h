@@ -4415,4 +4415,40 @@ inline C10_HOST_DEVICE T spherical_bessel_j0_forward(T x) {
     return std::sin(x) / x;
 } // T spherical_bessel_j0_forward(T x)
 
+template<typename T>
+inline C10_HOST_DEVICE T spherical_bessel_j1_forward(T x) {
+    if (std::isinf(x)) {
+        return T(0.0);
+    }
+
+    // j_1(x) = sin(x) / x^2 - cos(x) / x is built from two O(1/x) terms whose
+    // difference is O(x), so it cancels catastrophically near the origin. Use the
+    // Maclaurin series x/3 - x^3/30 + x^5/840 - ... (DLMF 10.53.1) below |x| < 0.5.
+    if (std::abs(x) < T(0.5)) {
+        return x * (T(1.0) / T(3.0) + x * x * (T(-1.0) / T(30.0) + x * x * (T(1.0) / T(840.0) + x * x * (T(-1.0) / T(45360.0) + x * x * (T(1.0) / T(3991680.0) + x * x * (T(-1.0) / T(518918400.0) + x * x * (T(1.0) / T(93405312000.0))))))));
+    }
+
+    return std::sin(x) / (x * x) - std::cos(x) / x;
+} // T spherical_bessel_j1_forward(T x)
+
+template<typename T>
+inline C10_HOST_DEVICE T spherical_bessel_y0_forward(T x) {
+    if (std::isinf(x)) {
+        return T(0.0);
+    }
+
+    return -std::cos(x) / x;
+} // T spherical_bessel_y0_forward(T x)
+
+template<typename T>
+inline C10_HOST_DEVICE T spherical_bessel_y1_forward(T x) {
+    if (std::isinf(x)) {
+        return T(0.0);
+    }
+
+    // -(cos(x) + x sin(x)) / x^2 == -cos(x) / x^2 - sin(x) / x, but the grouped
+    // form avoids the 0/0 in the sin(x)/x term at x = 0 (limit is -inf).
+    return -(std::cos(x) + x * std::sin(x)) / (x * x);
+} // T spherical_bessel_y1_forward(T x)
+
 C10_CLANG_DIAGNOSTIC_POP()
