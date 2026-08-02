@@ -3714,13 +3714,14 @@ inline C10_HOST_DEVICE int bessel_gamma_sign(T x) {
 
 template<typename T>
 inline C10_HOST_DEVICE bool bessel_is_integer(T x) {
+    // This checks a floating-point value, not the scalar type.
     return std::isfinite(x) && std::floor(x) == x;
 }
 
 // DLMF 10.40.2 asymptotic expansion for K_nu(x), optimally truncated
 template<typename T>
 inline C10_HOST_DEVICE T bessel_k_asymptotic(T x, T nu) {
-    const T pi = c10::pi<T>;
+    constexpr T pi = c10::pi<T>;
     T mu = T(4.0) * nu * nu;
 
     T sum_val = T(1.0);
@@ -3752,16 +3753,16 @@ inline C10_HOST_DEVICE T bessel_k_asymptotic(T x, T nu) {
 // Threshold x <= 2.0 follows Boost.Math (bessel_ik.hpp) and GSL (bessel_Knu.c).
 template<typename T>
 inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
-    const T pi = c10::pi<T>;
-    const T euler_gamma = c10::euler<T>;
-    const int max_iter = 100;
-    const T tol = std::numeric_limits<T>::epsilon() * T(10.0);
+    constexpr T pi = c10::pi<T>;
+    constexpr T euler_gamma = c10::euler<T>;
+    constexpr int max_iter = 100;
+    constexpr T tol = std::numeric_limits<T>::epsilon() * T(10.0);
 
     // Gamma(1+v) - 1 via expm1(lgamma) to avoid cancellation near v=0.
     T gp = std::expm1(std::lgamma(T(1.0) + mu));
     T gm = std::expm1(std::lgamma(T(1.0) - mu));
 
-    T a = std::log(x / T(2.0));
+    T a = std::log(x * T(0.5));
     T b = std::exp(mu * a);
     T sigma = -a * mu;
 
@@ -3796,8 +3797,8 @@ inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
         gamma2 = (inv_gm + inv_gp) / T(2.0);
     }
 
-    T p = (T(1.0) + gp) / (T(2.0) * b);
-    T q = (T(1.0) + gm) * b / T(2.0);
+    T p = (T(1.0) + gp) * T(0.5) / b;
+    T q = (T(1.0) + gm) * b * T(0.5);
     T f = (std::cosh(sigma) * gamma1 + d * (-a) * gamma2) / c;
     T h = p;
     T coef = T(1.0);
@@ -3805,7 +3806,7 @@ inline C10_HOST_DEVICE void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
     T sum1 = coef * h;
 
     T x2_4 = x * x / T(4.0);
-    const T denom_floor = sizeof(T) >= 8 ? T(1e-300) : T(1e-38);
+    constexpr T denom_floor = sizeof(T) >= 8 ? T(1e-300) : T(1e-38);
 
     for (int k = 1; k < max_iter; k++) {
         T k_T = T(k);
@@ -3881,10 +3882,11 @@ inline C10_HOST_DEVICE void CF2_ik(T mu, T x, T* K_mu, T* K_mu1) {
         }
     }
 
+    constexpr T half_pi = pi * T(0.5);
     if (-x < std::log(std::numeric_limits<T>::min())) {
-        *K_mu = std::exp(T(0.5) * std::log(pi / (T(2.0) * x)) - x - std::log(S));
+        *K_mu = std::exp(T(0.5) * std::log(half_pi / x) - x - std::log(S));
     } else {
-        *K_mu = std::sqrt(pi / (T(2.0) * x)) * std::exp(-x) / S;
+        *K_mu = std::sqrt(half_pi / x) * std::exp(-x) / S;
     }
     *K_mu1 = *K_mu * (T(0.5) + mu + x + (mu * mu - T(0.25)) * f) / x;
 }
@@ -3892,7 +3894,7 @@ inline C10_HOST_DEVICE void CF2_ik(T mu, T x, T* K_mu, T* K_mu1) {
 // DLMF 10.40.1 asymptotic expansion for I_nu(x), optimally truncated
 template<typename T>
 inline C10_HOST_DEVICE T bessel_i_asymptotic(T x, T nu) {
-    const T pi = c10::pi<T>;
+    constexpr T pi = c10::pi<T>;
     T mu = T(4.0) * nu * nu;
 
     T sum_val = T(1.0);
@@ -3920,7 +3922,7 @@ inline C10_HOST_DEVICE T bessel_i_asymptotic(T x, T nu) {
 // with eta and p from 10.41.7-10.41.8 and U_1..U_3 from 10.41.10.
 template<typename T>
 inline C10_HOST_DEVICE T bessel_i_uniform_asymptotic(T x, T nu) {
-    const T pi = c10::pi<T>;
+    constexpr T pi = c10::pi<T>;
     T z = x / nu;
     T z2 = z * z;
     T w = std::sqrt(T(1.0) + z2);
@@ -3928,16 +3930,9 @@ inline C10_HOST_DEVICE T bessel_i_uniform_asymptotic(T x, T nu) {
     T eta = w + std::log(z / (T(1.0) + w));
 
     T p2 = p * p;
-    T p3 = p2 * p;
-    T p4 = p2 * p2;
-    T p5 = p4 * p;
-    T p6 = p3 * p3;
-    T p7 = p6 * p;
-    T p9 = p7 * p2;
-
-    T U1 = (T(3.0) * p - T(5.0) * p3) / T(24.0);
-    T U2 = (T(81.0) * p2 - T(462.0) * p4 + T(385.0) * p6) / T(1152.0);
-    T U3 = (T(30375.0) * p3 - T(369603.0) * p5 + T(765765.0) * p7 - T(425425.0) * p9) / T(414720.0);
+    T U1 = p * (T(3.0) - T(5.0) * p2) / T(24.0);
+    T U2 = p2 * (T(81.0) - p2 * (T(462.0) - T(385.0) * p2)) / T(1152.0);
+    T U3 = p2 * p * (T(30375.0) - p2 * (T(369603.0) - p2 * (T(765765.0) - T(425425.0) * p2))) / T(414720.0);
 
     T inv_nu = T(1.0) / nu;
     T series = T(1.0) + inv_nu * (U1 + inv_nu * (U2 + inv_nu * U3));
@@ -4076,7 +4071,7 @@ inline C10_HOST_DEVICE T modified_bessel_i_forward(T x, T nu) {
     if (nu < T(0.0) && bessel_is_integer(nu_abs)) {
         nu = nu_abs;
     } else if (nu < T(0.0)) {
-        const double pi = c10::pi<double>;
+        constexpr double pi = c10::pi<double>;
         const double x_acc = static_cast<double>(x);
         const double nu_acc = static_cast<double>(nu_abs);
         const double nearest = std::floor(nu_acc + 0.5);

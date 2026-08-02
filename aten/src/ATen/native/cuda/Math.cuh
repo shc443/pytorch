@@ -2836,13 +2836,14 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
 
     template<typename T>
     bool bessel_is_integer(T x) {
+        // This checks a floating-point value, not the scalar type.
         return x == x && x != INFINITY && x != -INFINITY && floor(x) == x;
     }
 
     // Asymptotic expansion for I_nu(x) (large x)
     template<typename T>
     T bessel_i_asymptotic(T x, T nu) {
-        const T pi = T(3.14159265358979323846);
+        constexpr T pi = T(3.14159265358979323846);
         T mu = T(4.0) * nu * nu;
         const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
 
@@ -2870,7 +2871,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
     // with eta and p from 10.41.7-10.41.8 and U_1..U_3 from 10.41.10.
     template<typename T>
     T bessel_i_uniform_asymptotic(T x, T nu) {
-        const T pi = T(3.14159265358979323846);
+        constexpr T pi = T(3.14159265358979323846);
         T z = x / nu;
         T z2 = z * z;
         T w = sqrt(T(1.0) + z2);
@@ -2878,16 +2879,9 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
         T eta = w + log(z / (T(1.0) + w));
 
         T p2 = p * p;
-        T p3 = p2 * p;
-        T p4 = p2 * p2;
-        T p5 = p4 * p;
-        T p6 = p3 * p3;
-        T p7 = p6 * p;
-        T p9 = p7 * p2;
-
-        T U1 = (T(3.0) * p - T(5.0) * p3) / T(24.0);
-        T U2 = (T(81.0) * p2 - T(462.0) * p4 + T(385.0) * p6) / T(1152.0);
-        T U3 = (T(30375.0) * p3 - T(369603.0) * p5 + T(765765.0) * p7 - T(425425.0) * p9) / T(414720.0);
+        T U1 = p * (T(3.0) - T(5.0) * p2) / T(24.0);
+        T U2 = p2 * (T(81.0) - p2 * (T(462.0) - T(385.0) * p2)) / T(1152.0);
+        T U3 = p2 * p * (T(30375.0) - p2 * (T(369603.0) - p2 * (T(765765.0) - T(425425.0) * p2))) / T(414720.0);
 
         T inv_nu = T(1.0) / nu;
         T series = T(1.0) + inv_nu * (U1 + inv_nu * (U2 + inv_nu * U3));
@@ -2946,7 +2940,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
     // Asymptotic expansion for K_nu(x) (large x)
     template<typename T>
     T bessel_k_asymptotic(T x, T nu) {
-        const T pi = T(3.14159265358979323846);
+        constexpr T pi = T(3.14159265358979323846);
         T mu = T(4.0) * nu * nu;
         const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
 
@@ -3018,7 +3012,7 @@ const auto modified_bessel_i_string = modified_bessel_i0_string + modified_besse
         if (nu < T(0.0) && bessel_is_integer(nu_abs)) {
             nu = nu_abs;
         } else if (nu < T(0.0)) {
-            const double pi = 3.14159265358979323846;
+            constexpr double pi = 3.14159265358979323846;
             const double x_acc = static_cast<double>(x);
             const double nu_acc = static_cast<double>(nu_abs);
             const double nearest = floor(nu_acc + 0.5);
@@ -3052,7 +3046,7 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
     // requires a floor(nu) -> int64 cast that is only safe inside int64 range.
     template<typename T>
     T bessel_k_uniform_asymptotic(T x, T nu) {
-        const T pi = T(3.14159265358979323846);
+        constexpr T pi = T(3.14159265358979323846);
         T z = x / nu;
         T z2 = z * z;
         T w = sqrt(T(1.0) + z2);
@@ -3060,16 +3054,9 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         T eta = w + log(z / (T(1.0) + w));
 
         T p2 = p * p;
-        T p3 = p2 * p;
-        T p4 = p2 * p2;
-        T p5 = p4 * p;
-        T p6 = p3 * p3;
-        T p7 = p6 * p;
-        T p9 = p7 * p2;
-
-        T U1 = (T(3.0) * p - T(5.0) * p3) / T(24.0);
-        T U2 = (T(81.0) * p2 - T(462.0) * p4 + T(385.0) * p6) / T(1152.0);
-        T U3 = (T(30375.0) * p3 - T(369603.0) * p5 + T(765765.0) * p7 - T(425425.0) * p9) / T(414720.0);
+        T U1 = p * (T(3.0) - T(5.0) * p2) / T(24.0);
+        T U2 = p2 * (T(81.0) - p2 * (T(462.0) - T(385.0) * p2)) / T(1152.0);
+        T U3 = p2 * p * (T(30375.0) - p2 * (T(369603.0) - p2 * (T(765765.0) - T(425425.0) * p2))) / T(414720.0);
 
         T inv_nu = T(1.0) / nu;
         T series = T(1.0) + inv_nu * (-U1 + inv_nu * (U2 + inv_nu * (-U3)));
@@ -3131,17 +3118,17 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
     // Threshold x <= 2.0 follows Boost.Math (bessel_ik.hpp) and GSL (bessel_Knu.c).
     template<typename T>
     void temme_ik(T mu, T x, T* K_mu, T* K_mu1) {
-        const T pi = T(3.14159265358979323846);
-        const T euler_gamma = T(0.5772156649015328606065120900824024310422);
-        const int max_iter = 100;
+        constexpr T pi = T(3.14159265358979323846);
+        constexpr T euler_gamma = T(0.5772156649015328606065120900824024310422);
+        constexpr int max_iter = 100;
         // Use machine-epsilon-based tolerance that works for both float32 and float64
-        const T tol = T(10.0) * (sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7));
+        constexpr T tol = T(10.0) * (sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7));
 
         // Gamma(1+v) - 1 via expm1(lgamma) to avoid cancellation near v=0.
         T gp = expm1(lgamma(T(1.0) + mu));
         T gm = expm1(lgamma(T(1.0) - mu));
 
-        T a = log(x / T(2.0));
+        T a = log(x * T(0.5));
         T b = exp(mu * a);
         T sigma = -a * mu;
 
@@ -3175,8 +3162,8 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
             gamma2 = (inv_gm + inv_gp) / T(2.0);
         }
 
-        T p = (T(1.0) + gp) / (T(2.0) * b);
-        T q = (T(1.0) + gm) * b / T(2.0);
+        T p = (T(1.0) + gp) * T(0.5) / b;
+        T q = (T(1.0) + gm) * b * T(0.5);
         T f = (cosh(sigma) * gamma1 + d * (-a) * gamma2) / c;
         T h = p;
         T coef = T(1.0);
@@ -3184,7 +3171,7 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         T sum1 = coef * h;
 
         T x2_4 = x * x / T(4.0);
-        const T denom_floor = sizeof(T) >= 8 ? T(1e-300) : T(1e-38);
+        constexpr T denom_floor = sizeof(T) >= 8 ? T(1e-300) : T(1e-38);
 
         for (int k = 1; k < max_iter; k++) {
             T k_T = T(k);
@@ -3225,9 +3212,10 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
     // Same algorithm as Boost.Math CF2_ik() and GSL CF2 implementation.
     template<typename T>
     void CF2_ik(T mu, T x, T* K_mu, T* K_mu1) {
-        const T pi = T(3.14159265358979323846);
-        const T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
-        const int max_iter = 1000;
+        constexpr T pi = T(3.14159265358979323846);
+        constexpr T half_pi = pi * T(0.5);
+        constexpr T tol = sizeof(T) >= 8 ? T(2.2204460492503131e-16) : T(1.1920929e-7);
+        constexpr int max_iter = 1000;
 
         T a = mu * mu - T(0.25);
         T b = T(2.0) * (x + T(1.0));
@@ -3272,9 +3260,9 @@ const auto modified_bessel_k_string = modified_bessel_i_string + modified_bessel
         // Guard against underflow in exp(-x) for large x
         const T log_min = sizeof(T) >= 8 ? T(-708.0) : T(-87.0);
         if (-x < log_min) {
-            *K_mu = exp(T(0.5) * log(pi / (T(2.0) * x)) - x - log(S));
+            *K_mu = exp(T(0.5) * log(half_pi / x) - x - log(S));
         } else {
-            *K_mu = sqrt(pi / (T(2.0) * x)) * exp(-x) / S;
+            *K_mu = sqrt(half_pi / x) * exp(-x) / S;
         }
         *K_mu1 = *K_mu * (T(0.5) + mu + x + (mu * mu - T(0.25)) * f) / x;
     }
